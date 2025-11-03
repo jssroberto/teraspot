@@ -13,23 +13,23 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-      # Step 1: Clonar repositorio
+      # Step 1: Clone repository
       - name: Checkout code
         uses: actions/checkout@v3
-      
-      # Step 2: Configurar AWS credentials
+
+      # Step 2: Configure AWS credentials
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v2
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-east-1
-      
-      # Step 3: Instalar dependencias
+
+      # Step 3: Install dependencies
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.10'
+          python-version: '3.12'
       
       # Step 4: Deploy ingest_status Lambda
       - name: Deploy ingest_status
@@ -86,7 +86,7 @@ jobs:
             --function-name teraspot-read-status \
             --zip-file fileb://lambda.zip \
             --region us-east-1
-      
-      # Step 8: Notificar resultado
+
+      # Step 8: Notify result
       - name: Deployment successful
         run: echo "✅ All Lambdas deployed successfully to AWS!"
