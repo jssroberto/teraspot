@@ -1,0 +1,13 @@
+{
+  "name": "teraspot",
+  "version": "1.0.0",
+  "description": "Intelligent parking management system with fog computing",
+  "private": true,
+  "workspaces": [
+    "frontend/*"
+  ],
+  "scripts": {
+    "test": "npm run test --workspaces",
+    "build": "npm run build --workspaces"
+  }
+}
