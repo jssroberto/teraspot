@@ -1,0 +1,74 @@
+name: Deploy Lambdas to AWS
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'backend/lambdas/**'
+      - '.github/workflows/deploy-lambdas.yml'
+
+env:
+  AWS_REGION: us-east-1
+  LAMBDAS: |
+    teraspot-ingest-lambda:backend/lambdas/ingest_status
+    teraspot-analytics-notifier:backend/lambdas/analytics_notifier
+    teraspot-config-saver:backend/lambdas/config_saver
+    teraspot-read-status:backend/lambdas/read_status
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
+
+      - name: Deploy all Lambdas
+        run: |
+          while IFS=: read -r FUNCTION_NAME LAMBDA_PATH; do
+            echo "🚀 Deploying $FUNCTION_NAME from $LAMBDA_PATH..."
+            cd "$LAMBDA_PATH"
+            
+            # Clean previous builds
+            rm -rf package lambda.zip
+            
+            # Install dependencies and package
+            pip install -r requirements.txt -t package/ --quiet
+            cp lambda_function.py package/
+            
+            # Create deployment zip
+            cd package
+            zip -r ../lambda.zip . -q
+            cd ..
+            
+            # Deploy to AWS
+            aws lambda update-function-code \
+              --function-name "$FUNCTION_NAME" \
+              --zip-file fileb://lambda.zip \
+              --region "${{ env.AWS_REGION }}" \
+              --no-cli-pager
+            
+            echo "✅ $FUNCTION_NAME deployed"
+            cd - > /dev/null
+          done <<< "${{ env.LAMBDAS }}"
+
+      - name: Deployment Summary
+        if: success()
+        run: echo "✅ All Lambdas deployed successfully!"
+
+      - name: Deployment Failed
+        if: failure()
+        run: echo "❌ Lambda deployment failed. Check logs above."
