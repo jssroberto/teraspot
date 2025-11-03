@@ -1,0 +1,2 @@
+# boto3 viene incluido en AWS Lambda
+# No necesitamos dependencias externas para production

@@ -1,0 +1,8 @@
+{
+  "path": "/status",
+  "httpMethod": "GET",
+  "queryStringParameters": null,
+  "headers": {
+    "Content-Type": "application/json"
+  }
+}

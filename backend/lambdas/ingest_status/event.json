@@ -1,0 +1,12 @@
+{
+  "spaces": {
+    "A-01": {"status": "occupied", "confidence": 0.95},
+    "A-02": {"status": "vacant", "confidence": 0.92},
+    "A-03": {"status": "occupied", "confidence": 0.88},
+    "A-04": {"status": "vacant", "confidence": 0.78},
+    "A-05": {"status": "occupied", "confidence": 0.91},
+    "A-06": {"status": "vacant", "confidence": 0.85}
+  },
+  "timestamp": "2025-11-03T21:32:00Z",
+  "device_id": "TeraSpot-Processor-01"
+}

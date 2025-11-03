@@ -9,6 +9,10 @@ dist/
 build/
 *.egg-info/
 
+# Lambda
+package/
+lambda.zip
+
 # Node
 node_modules/
 .npm

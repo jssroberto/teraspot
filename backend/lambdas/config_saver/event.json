@@ -1,0 +1,14 @@
+{
+  "action": "SAVE",
+  "config": {
+    "config_id": "zone-parking-a",
+    "config_type": "zone",
+    "value": {
+      "name": "Parking Zone A",
+      "total_spaces": 50,
+      "location": "Building A"
+    },
+    "updated_by": "admin",
+    "active": true
+  }
+}

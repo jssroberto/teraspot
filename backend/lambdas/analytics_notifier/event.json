@@ -1,0 +1,18 @@
+{
+  "alerts": [
+    {
+      "space_id": "A-01",
+      "type": "LOW_CONFIDENCE",
+      "severity": "WARNING",
+      "message": "⚠️ A-01: Low confidence (0.75)",
+      "timestamp": "2025-11-03T21:36:00Z"
+    },
+    {
+      "space_id": "ZONE-A",
+      "type": "HIGH_OCCUPANCY",
+      "severity": "ALERT",
+      "message": "🟠 HIGH occupancy: 82.5%",
+      "timestamp": "2025-11-03T21:36:00Z"
+    }
+  ]
+}
