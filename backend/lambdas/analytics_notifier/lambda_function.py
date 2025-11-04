@@ -59,7 +59,6 @@ def lambda_handler(event, context):
         
         for record in event.get('Records', []):
             if record['eventName'] in ['MODIFY', 'INSERT']:
-                logger.info(f"Procesando evento de MODIFICACIÓN: {record['eventID']}")
         
                 old_image = record['dynamodb'].get('OldImage', {})
                 new_image = record['dynamodb'].get('NewImage', {})
