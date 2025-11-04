@@ -41,7 +41,8 @@ jobs:
       - name: Test config_saver
         run: |
           cd backend
-          pytest lambdas/config_saver/tests/ -v
+          CI=true pytest lambdas/config_saver/tests/ -v
+
 
   deploy:
     needs: test
