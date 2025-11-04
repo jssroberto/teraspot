@@ -12,6 +12,9 @@ env:
   AWS_REGION: us-east-1
   LAMBDAS: |
     teraspot-ingest-lambda:backend/lambdas/ingest_status
+    teraspot-analytics-notifier:backend/lambdas/analytics_notifier
+    teraspot-config-saver:backend/lambdas/config_saver
+    teraspot-read-status:backend/lambdas/read_status
 
 jobs:
   deploy:
