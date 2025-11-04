@@ -4,7 +4,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 import json
 import pytest
 import boto3
-from moto import mock_dynamodb
+from moto import mock_aws
 from lambda_function import (
     validate_config,
     lambda_handler
@@ -70,8 +70,7 @@ def test_validate_config_device():
 
 
 # ============ TESTS CON MOCK (Handler) ============
-
-@mock_dynamodb
+@mock_aws
 def test_lambda_handler_save():
     """Test handler SAVE con DynamoDB simulado"""
     # Setup: Crear tabla mock
