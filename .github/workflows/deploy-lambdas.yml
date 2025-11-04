@@ -23,10 +23,25 @@ jobs:
           cd backend
           pip install -r requirements.txt
       
-      - name: Run tests
+      - name: Test ingest_status
         run: |
           cd backend
-          pytest -v
+          pytest lambdas/ingest_status/tests/ -v
+
+      - name: Test analytics_notifier
+        run: |
+          cd backend
+          pytest lambdas/analytics_notifier/tests/ -v
+
+      - name: Test read_status
+        run: |
+          cd backend
+          pytest lambdas/read_status/tests/ -v
+
+      - name: Test config_saver
+        run: |
+          cd backend
+          pytest lambdas/config_saver/tests/ -v
 
   deploy:
     needs: test

@@ -151,7 +151,14 @@ def lambda_handler(event, context):
         
         if not items:
             logger.error(f"❌ No valid items (rejected: {rejected})")
-            return {'statusCode': 400, 'body': json.dumps({'error': 'No items'})}
+            return {
+                'statusCode': 400,
+                'body': json.dumps({
+                    'error': 'No items',
+                    'rejected': rejected  # ← AGREGAR
+                })
+            }
+
         
         # PASO 2: Guardar ACTUAL
         logger.info("💾 Saving current data")
