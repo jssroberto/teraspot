@@ -9,7 +9,7 @@ logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 # Environment Variables - DynamoDB
-DYNAMODB_TABLE = os.getenv('DYNAMODB_TABLE', 'parking-spaces')
+DYNAMODB_TABLE = os.getenv('DYNAMODB_TABLE', 'parking-spaces-dev')
 HISTORY_TABLE = os.getenv('HISTORY_TABLE', 'parking-history')
 REGION = os.getenv('REGION', 'us-east-1')
 
