@@ -106,7 +106,7 @@ def test_lambda_handler_save():
     assert body['config_id'] == 'zone-test'
 
 
-@mock_dynamodb
+@mock_aws
 def test_lambda_handler_list():
     """Test handler LIST"""
     dynamodb = boto3.resource('dynamodb', region_name='us-east-1')
