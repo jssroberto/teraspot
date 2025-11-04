@@ -8,7 +8,6 @@ from datetime import datetime
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-# Configuración
 AWS_REGION = os.getenv('AWS_REGION', 'us-east-1')
 SNS_TOPIC_ARN = os.getenv('SNS_TOPIC_ARN', '')
 SES_SENDER_EMAIL = os.getenv('SES_SENDER_EMAIL', 'noreply@teraspot.com')
@@ -19,15 +18,13 @@ ses_client = boto3.client('ses', region_name=AWS_REGION)
 
 
 def format_alert_html(alerts: List[Dict[str, Any]]) -> str:
-    """
-    Formatea alertas en HTML para enviar por email.
-    """
+    """Formatea alertas en HTML para enviar por email."""
     alert_rows = ""
     for alert in alerts:
         severity_color = {
-            'WARNING': '#FFA500',      # Naranja
-            'ALERT': '#FF6B6B',        # Rojo
-            'CRITICAL': '#DC143C'      # Rojo oscuro
+            'WARNING': '#FFA500',
+            'ALERT': '#FF6B6B',
+            'CRITICAL': '#DC143C'
         }.get(alert.get('severity', 'WARNING'), '#999999')
         
         alert_rows += f"""
@@ -75,9 +72,7 @@ def format_alert_html(alerts: List[Dict[str, Any]]) -> str:
 
 
 def publish_to_sns(alerts: List[Dict[str, Any]]) -> bool:
-    """
-    Publica alertas a SNS (para que otros servicios se suscriban).
-    """
+    """Publica alertas a SNS."""
     if not SNS_TOPIC_ARN:
         logger.warning("⚠️ SNS_TOPIC_ARN not configured")
         return False
@@ -101,9 +96,7 @@ def publish_to_sns(alerts: List[Dict[str, Any]]) -> bool:
 
 
 def send_email_alert(alerts: List[Dict[str, Any]]) -> bool:
-    """
-    Envía email con alertas (requiere SES configurado).
-    """
+    """Envía email con alertas."""
     if not SES_SENDER_EMAIL or not ADMIN_EMAIL:
         logger.warning("⚠️ SES emails not configured")
         return False
@@ -135,9 +128,7 @@ def send_email_alert(alerts: List[Dict[str, Any]]) -> bool:
 
 
 def extract_alerts_from_dynamodb_stream(records: List[Dict]) -> List[Dict[str, Any]]:
-    """
-    Extrae alertas de eventos DynamoDB Streams.
-    """
+    """Extrae alertas de eventos DynamoDB Streams."""
     alerts = []
     for record in records:
         try:
@@ -145,7 +136,7 @@ def extract_alerts_from_dynamodb_stream(records: List[Dict]) -> List[Dict[str, A
             if new_image:
                 alert = {
                     'space_id': new_image.get('space_id', {}).get('S', 'N/A'),
-                    'type': new_image.get('alert_type', {}).get('S', 'UNKNOWN'),
+                    'type': new_image.get('type', {}).get('S', 'UNKNOWN'),  # ← ARREGLADO
                     'severity': new_image.get('severity', {}).get('S', 'WARNING'),
                     'message': new_image.get('message', {}).get('S', 'N/A'),
                     'timestamp': new_image.get('timestamp', {}).get('S', '')
@@ -158,13 +149,12 @@ def extract_alerts_from_dynamodb_stream(records: List[Dict]) -> List[Dict[str, A
 
 
 def lambda_handler(event, context):
-    """
-    Procesa alertas de múltiples fuentes:
-    - DynamoDB Streams (cuando ingest_status escribe alertas)
-    - Directamente desde ingest_status
-    - CloudWatch Events (periódico)
-    """
+    """Procesa alertas de múltiples fuentes."""
     try:
+        # Validación
+        if event is None:  # ← AGREGADO
+            raise ValueError("Event cannot be None")
+        
         logger.info("📨 analytics_notifier triggered")
         
         alerts = []

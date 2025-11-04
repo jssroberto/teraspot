@@ -2,39 +2,52 @@
 __pycache__/
 *.py[cod]
 *$py.class
-.env
-.venv/
+*.so
+.Python
+env/
 venv/
-dist/
-build/
 *.egg-info/
-
-# Lambda
-package/
-lambda.zip
-
-# Node
-node_modules/
-.npm
 dist/
 build/
+.pytest_cache/
+.coverage
 
-# AWS
-.aws/
-credentials
-config
-
-# IDE
+# IDEs
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
+.DS_Store
+
+# Environment
+.env
+.env.local
+*.pem
+
+# AWS
+.aws/
+terraform/.terraform/
+terraform/.terraform.lock.hcl
+terraform/terraform.tfstate*
+terraform/*.tfstate*
+terraform/package/
+*.zip
+
+# Node
+node_modules/
+npm-debug.log
 
 # OS
+Thumbs.db
 .DS_Store
-.env.local
 
-# Logs
-*.log
-logs/
+# Build artifacts
+*.exe
+*.dll
+*.so
+*.o
+
+# Large files
+*.iso
+*.tar.gz

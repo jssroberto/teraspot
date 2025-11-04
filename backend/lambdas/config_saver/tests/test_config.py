@@ -1,4 +1,6 @@
-# backend/lambdas/config_saver/tests/test_config.py
+import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 import json
 import pytest
 import boto3

@@ -1,3 +1,6 @@
+import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 import json
 import pytest
 from lambda_function import (
@@ -61,12 +64,17 @@ def test_lambda_handler_with_alerts():
 
 def test_lambda_handler_direct_payload():
     """Test con payload directo - lectura con UTF-8"""
+    import os
     # Leer con encoding UTF-8 para soportar emojis
-    with open('event.json', encoding='utf-8') as f:
+    test_dir = os.path.dirname(__file__)
+    event_path = os.path.join(test_dir, 'event.json')
+    
+    with open(event_path, encoding='utf-8') as f:
         event = json.load(f)
     
     result = lambda_handler(event, None)
     assert result['statusCode'] == 200
+
 
 
 def test_lambda_handler_invalid_event():
