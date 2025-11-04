@@ -1,22 +1,29 @@
-﻿variable "aws_region" {
-  default = "us-east-1"
+variable "aws_region" {
+  type        = string
+  description = "AWS region"
+  default     = "us-east-1"
 }
+
 variable "environment" {
-  default = "dev"
+  type        = string
+  description = "Environment (dev, staging, prod)"
+  default     = "dev"
 }
+
 variable "project_name" {
-  default = "teraspot"
+  type        = string
+  description = "Project name"
+  default     = "teraspot"
 }
-variable "parking_table_name" {
-  default = "parking-spaces-dev"
+
+variable "alert_retention_hours" {
+  type        = number
+  description = "Hours to retain alert messages"
+  default     = 24
 }
-variable "config_table_name" {
-  default = "teraspot-config-dev"
-}
-variable "timestream_db_name" {
-  default = "teraspot-db"
-}
-variable "retention_days" {
-  type = number
-  default = 30
+
+variable "dlq_retention_hours" {
+  type        = number
+  description = "Hours to retain DLQ messages"
+  default     = 336 # 14 días
 }

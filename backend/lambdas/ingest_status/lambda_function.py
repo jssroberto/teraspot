@@ -8,41 +8,44 @@ from decimal import Decimal
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
+# Environment Variables - DynamoDB
 DYNAMODB_TABLE = os.getenv('DYNAMODB_TABLE', 'parking-spaces')
 HISTORY_TABLE = os.getenv('HISTORY_TABLE', 'parking-history')
 REGION = os.getenv('REGION', 'us-east-1')
 
+# Environment Variables - SQS
+SQS_ALERTS_URL = os.getenv('SQS_ALERTS_URL')
+SQS_LOW_CONFIDENCE_URL = os.getenv('SQS_LOW_CONFIDENCE_URL')
+DLQ_URL = os.getenv('DLQ_URL')
+
+# AWS Clients
 dynamodb = boto3.resource('dynamodb', region_name=REGION)
+sqs = boto3.client('sqs', region_name=REGION)
+
 current_table = dynamodb.Table(DYNAMODB_TABLE)
 history_table = dynamodb.Table(HISTORY_TABLE)
 
 
 def validate_data(space_id: str, data: dict) -> tuple:
     """QA validation - 5 capas"""
-    
-    # CAPA 1: Tipo
     if not isinstance(data.get('confidence'), (int, float)):
         return False, "Invalid confidence type"
     
     confidence = float(data['confidence'])
     
-    # CAPA 2: Rango
     if not (0 <= confidence <= 1):
         return False, f"Confidence out of range: {confidence}"
     
-    # CAPA 3: Status válido
     status = data.get('status', '').lower()
     if status not in ['occupied', 'vacant']:
         return False, f"Invalid status: {status}"
     
-    # CAPA 4: Timestamp
     timestamp = data.get('timestamp', datetime.utcnow().isoformat())
     try:
         datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
     except:
         return False, "Invalid timestamp"
     
-    # CAPA 5: Business rules
     if confidence < 0.8:
         logger.warning(f"⚠️ LOW_CONFIDENCE: {space_id} = {confidence:.2f}")
     
@@ -111,15 +114,29 @@ def generate_alerts(items: list) -> list:
     return alerts
 
 
+def send_to_sqs(queue_url: str, message: dict):
+    """Envía alerta a SQS"""
+    try:
+        response = sqs.send_message(
+            QueueUrl=queue_url,
+            MessageBody=json.dumps(message),
+            MessageAttributes={
+                'AlertType': {'StringValue': message.get('type', 'UNKNOWN'), 'DataType': 'String'},
+                'Severity': {'StringValue': message.get('severity', 'INFO'), 'DataType': 'String'}
+            }
+        )
+        logger.info(f"📤 SQS message sent: {response['MessageId']}")
+        return True
+    except Exception as e:
+        logger.error(f"❌ SQS send failed: {str(e)}")
+        return False
+
+
 def lambda_handler(event, context):
-    """
-    PIPELINE COMPLETO:
-    MQTT → QA Validation → DynamoDB (actual + histórico) → Alertas
-    """
+    """Pipeline completo: MQTT → QA → DynamoDB → SQS Alerts"""
     try:
         logger.info("📨 ingest_status triggered")
         
-        # Parse payload
         payload = event.get('body')
         if isinstance(payload, str):
             payload = json.loads(payload)
@@ -153,12 +170,8 @@ def lambda_handler(event, context):
             logger.error(f"❌ No valid items (rejected: {rejected})")
             return {
                 'statusCode': 400,
-                'body': json.dumps({
-                    'error': 'No items',
-                    'rejected': rejected  # ← AGREGAR
-                })
+                'body': json.dumps({'error': 'No items', 'rejected': rejected})
             }
-
         
         # PASO 2: Guardar ACTUAL
         logger.info("💾 Saving current data")
@@ -171,6 +184,14 @@ def lambda_handler(event, context):
         # PASO 4: Generar alertas
         logger.info("🚨 Generating alerts")
         alerts = generate_alerts(items)
+        
+        # PASO 5: Enviar a SQS
+        logger.info("📤 Sending alerts to SQS")
+        for alert in alerts:
+            if alert['type'] == 'LOW_CONFIDENCE':
+                send_to_sqs(SQS_LOW_CONFIDENCE_URL, alert)
+            else:
+                send_to_sqs(SQS_ALERTS_URL, alert)
         
         logger.info(f"✅ Complete: {len(items)} items, {len(alerts)} alerts, {rejected} rejected")
         

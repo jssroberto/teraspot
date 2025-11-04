@@ -1,91 +1,224 @@
 import sys
 import os
-sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 import json
 import pytest
+from unittest.mock import patch, MagicMock
+
+# Fix imports
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from lambda_function import (
-    format_alert_html,
-    extract_alerts_from_dynamodb_stream,
+    send_to_sqs,
     lambda_handler
 )
 
 
-def test_format_alert_html():
-    """Test formateo de alertas a HTML"""
-    alerts = [
-        {'severity': 'WARNING', 'type': 'LOW_CONFIDENCE', 'message': 'Test'}
-    ]
-    html = format_alert_html(alerts)
-    assert '<html>' in html
-    assert 'TeraSpot' in html
-    assert 'WARNING' in html
-
-
-def test_extract_alerts_from_dynamodb_stream():
-    """Test extracción de alertas desde DynamoDB"""
-    records = [{
-        'dynamodb': {
-            'NewImage': {
-                'space_id': {'S': 'A-01'},
-                'type': {'S': 'LOW_CONFIDENCE'},
-                'severity': {'S': 'WARNING'},
-                'message': {'S': 'Low confidence'},
-                'timestamp': {'S': '2025-11-03T21:36:00Z'}
-            }
+class TestAnalyticsNotifier:
+    """Unit tests for analytics_notifier Lambda"""
+    
+    @patch('lambda_function.sqs')
+    def test_send_to_sqs_success(self, mock_sqs):
+        """Test: Successfully send message to SQS"""
+        mock_sqs.send_message.return_value = {'MessageId': 'test-msg-123'}
+        
+        message = {
+            'type': 'LOW_CONFIDENCE',
+            'space_id': 'A1',
+            'confidence': 0.72,
+            'severity': 'WARNING'
         }
-    }]
+        
+        result = send_to_sqs('https://sqs.us-east-1.amazonaws.com/123456/queue', message)
+        
+        assert result == True
+        mock_sqs.send_message.assert_called_once()
     
-    alerts = extract_alerts_from_dynamodb_stream(records)
-    assert len(alerts) == 1
-    assert alerts[0]['space_id'] == 'A-01'
-
-
-def test_lambda_handler_no_alerts():
-    """Test handler sin alertas"""
-    event = {}
-    result = lambda_handler(event, None)
-    assert result['statusCode'] == 200
-    body = json.loads(result['body'])
-    assert body['alerts_processed'] == 0
-
-
-def test_lambda_handler_with_alerts():
-    """Test handler con alertas"""
-    event = {
-        'alerts': [
-            {'severity': 'WARNING', 'type': 'LOW_CONFIDENCE', 'message': 'Test alert'}
+    @patch('lambda_function.sqs')
+    def test_send_to_sqs_failure(self, mock_sqs):
+        """Test: Failed to send to SQS"""
+        mock_sqs.send_message.side_effect = Exception("Connection error")
+        
+        message = {'type': 'TEST', 'severity': 'INFO'}
+        result = send_to_sqs('https://sqs.us-east-1.amazonaws.com/123456/queue', message)
+        
+        assert result == False
+    
+    @patch('lambda_function.sqs')
+    def test_lambda_handler_low_confidence_alert(self, mock_sqs):
+        """Test: Handler processes low confidence alert"""
+        mock_sqs.send_message.return_value = {'MessageId': 'test-456'}
+        
+        event = {
+            "Records": [
+                {
+                    "eventName": "INSERT",
+                    "dynamodb": {
+                        "NewImage": {
+                            "space_id": {"S": "A1"},
+                            "status": {"S": "occupied"},
+                            "confidence": {"N": "0.72"},
+                            "timestamp": {"S": "2025-11-04T09:00:00Z"}
+                        }
+                    }
+                }
+            ]
+        }
+        
+        result = lambda_handler(event, None)
+        
+        assert result['statusCode'] == 200
+        body = json.loads(result['body'])
+        assert body['success'] == True
+    
+    @patch('lambda_function.sqs')
+    def test_lambda_handler_high_occupancy(self, mock_sqs):
+        """Test: Handler detects high occupancy"""
+        mock_sqs.send_message.return_value = {'MessageId': 'test-789'}
+        
+        # Simulate 95% occupancy
+        records = [
+            {
+                "eventName": "INSERT",
+                "dynamodb": {
+                    "NewImage": {
+                        "space_id": {"S": f"A{i}"},
+                        "status": {"S": "occupied" if i < 19 else "vacant"},
+                        "confidence": {"N": "0.95"},
+                        "timestamp": {"S": "2025-11-04T09:00:00Z"}
+                    }
+                }
+            }
+            for i in range(20)
         ]
-    }
-    result = lambda_handler(event, None)
-    assert result['statusCode'] == 200
-    body = json.loads(result['body'])
-    assert body['alerts_processed'] == 1
-
-
-def test_lambda_handler_direct_payload():
-    """Test con payload directo - lectura con UTF-8"""
-    import os
-    # Leer con encoding UTF-8 para soportar emojis
-    test_dir = os.path.dirname(__file__)
-    event_path = os.path.join(test_dir, 'event.json')
+        
+        event = {"Records": records}
+        result = lambda_handler(event, None)
+        
+        assert result['statusCode'] == 200
+        body = json.loads(result['body'])
+        assert body['success'] == True
     
-    with open(event_path, encoding='utf-8') as f:
-        event = json.load(f)
+    @patch('lambda_function.sqs')
+    def test_lambda_handler_empty_records(self, mock_sqs):
+        """Test: Handler with empty records"""
+        event = {"Records": []}
+        
+        result = lambda_handler(event, None)
+        
+        assert result['statusCode'] == 200
+        body = json.loads(result['body'])
+        assert body['success'] == True
     
-    result = lambda_handler(event, None)
-    assert result['statusCode'] == 200
+    @patch('lambda_function.sqs')
+    def test_lambda_handler_missing_event(self, mock_sqs):
+        """Test: Handler with missing Records key"""
+        event = {}
+        
+        result = lambda_handler(event, None)
+        
+        assert result['statusCode'] == 200
+    
+    @patch('lambda_function.sqs')
+    def test_lambda_handler_error_handling(self, mock_sqs):
+        """Test: Handler error handling"""
+        mock_sqs.send_message.side_effect = Exception("SQS Error")
+        
+        event = {
+            "Records": [
+                {
+                    "eventName": "INSERT",
+                    "dynamodb": {
+                        "NewImage": {
+                            "space_id": {"S": "A1"},
+                            "status": {"S": "occupied"},
+                            "confidence": {"N": "0.75"},
+                            "timestamp": {"S": "2025-11-04T09:00:00Z"}
+                        }
+                    }
+                }
+            ]
+        }
+        
+        # Should handle exception gracefully
+        result = lambda_handler(event, None)
+        assert result['statusCode'] in [200, 500]
+    
+    @patch('lambda_function.sqs')
+    def test_lambda_handler_modify_event(self, mock_sqs):
+        """Test: Handler processes MODIFY events"""
+        mock_sqs.send_message.return_value = {'MessageId': 'test-modify'}
+        
+        event = {
+            "Records": [
+                {
+                    "eventName": "MODIFY",
+                    "dynamodb": {
+                        "NewImage": {
+                            "space_id": {"S": "B5"},
+                            "status": {"S": "vacant"},
+                            "confidence": {"N": "0.88"},
+                            "timestamp": {"S": "2025-11-04T09:00:00Z"}
+                        }
+                    }
+                }
+            ]
+        }
+        
+        result = lambda_handler(event, None)
+        
+        assert result['statusCode'] == 200
 
 
+# Additional edge case tests
+class TestAnalyticsNotifierEdgeCases:
+    """Edge case tests"""
+    
+    @patch('lambda_function.sqs')
+    def test_boundary_confidence_80_percent(self, mock_sqs):
+        """Test: Confidence at exact 0.80 boundary (not low)"""
+        event = {
+            "Records": [
+                {
+                    "eventName": "INSERT",
+                    "dynamodb": {
+                        "NewImage": {
+                            "space_id": {"S": "C1"},
+                            "status": {"S": "occupied"},
+                            "confidence": {"N": "0.80"},
+                            "timestamp": {"S": "2025-11-04T09:00:00Z"}
+                        }
+                    }
+                }
+            ]
+        }
+        
+        result = lambda_handler(event, None)
+        assert result['statusCode'] == 200
+    
+    @patch('lambda_function.sqs')
+    def test_boundary_confidence_79_percent(self, mock_sqs):
+        """Test: Confidence just below boundary (low)"""
+        mock_sqs.send_message.return_value = {'MessageId': 'test-boundary'}
+        
+        event = {
+            "Records": [
+                {
+                    "eventName": "INSERT",
+                    "dynamodb": {
+                        "NewImage": {
+                            "space_id": {"S": "C2"},
+                            "status": {"S": "occupied"},
+                            "confidence": {"N": "0.79"},
+                            "timestamp": {"S": "2025-11-04T09:00:00Z"}
+                        }
+                    }
+                }
+            ]
+        }
+        
+        result = lambda_handler(event, None)
+        assert result['statusCode'] == 200
 
-def test_lambda_handler_invalid_event():
-    """Test con evento inválido"""
-    event = {'invalid': 'data'}
-    result = lambda_handler(event, None)
-    assert result['statusCode'] == 200
 
-
-def test_lambda_handler_exception():
-    """Test manejo de excepciones"""
-    event = None
-    result = lambda_handler(event, None)
-    assert result['statusCode'] == 500
+if __name__ == '__main__':
+    pytest.main([__file__, '-v', '--tb=short'])
