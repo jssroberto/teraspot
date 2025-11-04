@@ -36,6 +36,7 @@ jobs:
       - name: Deploy all Lambdas
         run: |
           while IFS=: read -r FUNCTION_NAME LAMBDA_PATH; do
+            [ -z "$FUNCTION_NAME" ] && continue
             echo "🚀 Deploying $FUNCTION_NAME from $LAMBDA_PATH..."
             cd "$LAMBDA_PATH"
             
