@@ -8,7 +8,7 @@ logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 # AWS Clients
-sqs = boto3.client('sqs')
+sqs = boto3.client('sqs', region_name='us-east-1')
 
 # Environment Variables
 SQS_ALERTS_URL = os.getenv('SQS_ALERTS_URL')
