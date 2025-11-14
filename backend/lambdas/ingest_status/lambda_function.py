@@ -22,8 +22,8 @@ DLQ_URL = os.getenv('DLQ_URL')
 dynamodb = boto3.resource('dynamodb', region_name=REGION)
 sqs = boto3.client('sqs', region_name=REGION)
 
-current_table = dynamodb.Table(DYNAMODB_TABLE)
-history_table = dynamodb.Table(HISTORY_TABLE)
+current_table = dynamodb.Table(DYNAMODB_TABLE) # type: ignore
+history_table = dynamodb.Table(HISTORY_TABLE) # type: ignore
 
 
 def validate_data(space_id: str, data: dict) -> tuple:
@@ -43,7 +43,7 @@ def validate_data(space_id: str, data: dict) -> tuple:
     timestamp = data.get('timestamp', datetime.utcnow().isoformat())
     try:
         datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
-    except:
+    except Exception:
         return False, "Invalid timestamp"
     
     if confidence < 0.8:
@@ -189,10 +189,9 @@ def lambda_handler(event, context):
         logger.info("📤 Sending alerts to SQS")
         for alert in alerts:
             if alert['type'] == 'LOW_CONFIDENCE':
-                send_to_sqs(SQS_LOW_CONFIDENCE_URL, alert)
+                send_to_sqs(SQS_LOW_CONFIDENCE_URL, alert)  # type: ignore
             else:
-                send_to_sqs(SQS_ALERTS_URL, alert)
-        
+                send_to_sqs(SQS_ALERTS_URL, alert)  # type: ignore
         logger.info(f"✅ Complete: {len(items)} items, {len(alerts)} alerts, {rejected} rejected")
         
         return {
