@@ -1,0 +1,10 @@
+services:
+  teraspot-fog:
+    build: .
+    volumes:
+      - ./src:/app/src
+      - ./certs:/app/certs
+      - ./fog.env:/app/.env
+    command: poetry run python src/edge_publisher.py --iterations 5 --interval 10 --use-yolo
+    stdin_open: true
+    tty: true

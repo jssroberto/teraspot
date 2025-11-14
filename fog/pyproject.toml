@@ -1,0 +1,27 @@
+[project]
+name = "teraspot-fog"
+version = "0.1.0"
+description = ""
+authors = [
+    {name = "Roberto Garcia"}
+]
+readme = "README.md"
+requires-python = "3.12"
+dependencies = [
+    "numpy >=1.26.0,<2.0.0",
+    "opencv-python >=4.10.0",
+    "ultralytics >=8.3.0",
+    "torch ==2.5.0+cpu",
+    "torchvision ==0.20.0+cpu",
+    "boto3 >=1.34.0",
+    "botocore >=1.34.0",
+    "awsiotsdk >=1.12.0",
+    "paho-mqtt ==1.6.1",
+    "python-dotenv ==1.0.1",
+    "pyyaml ==6.0.1",
+]
+
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
