@@ -1,6 +1,7 @@
 services:
   teraspot-fog:
     build: .
+    image: teraspot-fog:dev
     container_name: teraspot-fog
     restart: unless-stopped
     environment:

@@ -6,17 +6,11 @@ RUN apt-get update && apt-get install -y \
     git \
     && rm -rf /var/lib/apt/lists/*
 
-RUN curl -sSL https://install.python-poetry.org | POETRY_VERSION=2.2.1 python3 -
-
-ENV PATH="/root/.local/bin:$PATH"
-
 WORKDIR /app
 
-COPY pyproject.toml poetry.lock* README.md /app/
+COPY requirements.txt /app/requirements.txt
 
-RUN poetry config virtualenvs.create false && \
-    poetry source add --priority=explicit pytorch-cpu https://download.pytorch.org/whl/cpu && \
-    poetry install --no-root --no-interaction --no-ansi
+RUN pip install --no-cache-dir -r /app/requirements.txt
 
 COPY . /app/
 
