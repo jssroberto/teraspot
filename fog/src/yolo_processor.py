@@ -11,13 +11,13 @@ logger = logging.getLogger(__name__)
 
 
 class YOLOProcessor:
-    def __init__(self, model_path="edge/models/yolo11n.pt"):
+    def __init__(self, model_path="models/yolo11n.pt"):
         """Initialize YOLO model"""
         try:
             self.model = YOLO(model_path)
-            logger.info(f"✅ YOLO model loaded from {model_path}")
+            logger.info(f"YOLO model loaded from {model_path}")
         except Exception as e:
-            logger.error(f"❌ Failed to load YOLO model: {e}")
+            logger.error(f"Failed to load YOLO model: {e}")
             raise
 
         self.image_path = None
@@ -25,7 +25,7 @@ class YOLOProcessor:
     def set_image(self, image_path):
         """Set image for inference"""
         self.image_path = image_path
-        logger.info(f"📸 Image set to: {image_path}")
+        logger.info(f"Image set to: {image_path}")
 
     def detect_parking_spaces(self, image_path=None, total_spaces=30):
         """
@@ -40,7 +40,7 @@ class YOLOProcessor:
         """
         img_path = image_path or self.image_path
         if not img_path:
-            raise ValueError("❌ No image path provided")
+            raise ValueError("No image path provided")
 
         try:
             # Run YOLO inference
@@ -48,7 +48,7 @@ class YOLOProcessor:
             detections = results[0].boxes.data  # Get bounding boxes
 
             num_detected_objects = len(detections)
-            logger.info(f"🚗 YOLO detected {num_detected_objects} objects")
+            logger.info(f"YOLO detected {num_detected_objects} objects")
 
             # Simulate parking detection: assume 70% of detections are vehicles
             vehicle_count = int(num_detected_objects * 0.7)
@@ -74,5 +74,5 @@ class YOLOProcessor:
             }
 
         except Exception as e:
-            logger.error(f"❌ YOLO inference failed: {e}")
+            logger.error(f"YOLO inference failed: {e}")
             raise

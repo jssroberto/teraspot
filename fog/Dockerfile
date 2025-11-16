@@ -38,6 +38,8 @@ COPY --from=build /usr/local/lib/python3.12/site-packages /usr/local/lib/python3
 
 COPY --from=build /app /app
 
+RUN find /app -type d -name "__pycache__" -exec rm -rf {} + || true
+
 RUN chown -R appuser:appuser /app
 
 USER appuser

@@ -1,6 +1,7 @@
 services:
   teraspot-fog:
     build: .
+    container_name: teraspot-fog
     restart: unless-stopped
     environment:
       AWS_IOT_ENDPOINT: ${AWS_IOT_ENDPOINT}

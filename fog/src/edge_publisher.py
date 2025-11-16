@@ -21,7 +21,8 @@ try:
     from yolo_processor import YOLOProcessor
 
     YOLO_AVAILABLE = True
-except ImportError:
+except ImportError as e:
+    logging.warning(f"YOLO processor not available: {e}")
     YOLO_AVAILABLE = False
 
 # Configure logging
@@ -45,16 +46,16 @@ def load_config_from_env():
 
     # Validate endpoint
     if not config["endpoint"]:
-        logger.error("❌ AWS_IOT_ENDPOINT not set")
+        logger.error("AWS_IOT_ENDPOINT not set")
         sys.exit(1)
 
     # Validate certificates exist
     for key in ["cert_path", "key_path", "ca_path"]:
         if not os.path.isfile(config[key]):
-            logger.error(f"❌ Certificate not found: {config[key]}")
+            logger.error(f"Certificate not found: {config[key]}")
             sys.exit(1)
 
-    logger.info("✅ Configuration loaded from environment")
+    logger.info("Configuration loaded from environment")
     logger.info(f"   Endpoint: {config['endpoint']}")
     logger.info(f"   Thing Name: {config['thing_name']}")
     logger.info(f"   Topic: {config['topic']}")
@@ -64,18 +65,18 @@ def load_config_from_env():
 
 def on_connection_success(connection, callback_data):
     """Callback when connection succeeds"""
-    logger.info("✅ Successfully connected to AWS IoT Core!")
+    logger.info("Successfully connected to AWS IoT Core!")
 
 
 def on_connection_failure(connection, callback_data):
     """Callback when connection fails"""
-    logger.error("❌ Failed to connect to AWS IoT Core")
+    logger.error("Failed to connect to AWS IoT Core")
     logger.error(f"   Error: {callback_data}")
 
 
 def on_connection_closed(connection, callback_data):
     """Callback when connection closes"""
-    logger.info("🔌 Connection closed")
+    logger.info("Connection closed")
 
 
 def generate_mocked_spaces(count=30):
@@ -193,7 +194,7 @@ def publish_message(mqtt_connection, topic, payload, verbose=True):
                 if space.get("confidence", 1.0) < 0.70:
                     low_confidence_count += 1
 
-        logger.info(f"\n📡 Publishing to topic: {topic}")
+        logger.info(f"\nPublishing to topic: {topic}")
         logger.info(
             f"   Occupied: {payload['total_occupied']} | "
             f"Vacant: {payload['total_vacant']} | "
@@ -202,7 +203,7 @@ def publish_message(mqtt_connection, topic, payload, verbose=True):
         )
 
         if low_confidence_count > 0:
-            logger.info(f"   ⚠️  Low Confidence Detections: {low_confidence_count}")
+            logger.info(f"   Low Confidence Detections: {low_confidence_count}")
 
         if "detections_count" in payload:
             logger.info(f"   Detections: {payload['detections_count']}")
@@ -212,7 +213,7 @@ def publish_message(mqtt_connection, topic, payload, verbose=True):
     )
 
     if verbose:
-        logger.info("   ✅ Message published successfully!")
+        logger.info("   Message published successfully!")
 
 
 def main():
@@ -227,13 +228,13 @@ def main():
     )
     parser.add_argument(
         "--image",
-        default="edge/bus.jpg",
-        help="Image path for YOLO inference (default: edge/bus.jpg)",
+        default="assets/bus.jpg",
+        help="Image path for YOLO inference (default: assets/bus.jpg)",
     )
     parser.add_argument(
         "--model",
-        default="edge/models/yolo11n.pt",
-        help="YOLO model path (default: edge/models/yolo11n.pt)",
+        default="models/yolo11n.pt",
+        help="YOLO model path (default: models/yolo11n.pt)",
     )
 
     # Publisher arguments
@@ -266,16 +267,16 @@ def main():
     if args.use_yolo:
         if not YOLO_AVAILABLE:
             logger.error(
-                "❌ YOLO processor not available. Install ultralytics or disable --use-yolo"
+                "YOLO processor not available. Install ultralytics or disable --use-yolo"
             )
             sys.exit(1)
 
         try:
             yolo = YOLOProcessor(args.model)
             yolo.set_image(args.image)
-            logger.info(f"✅ YOLO mode enabled with image: {args.image}")
+            logger.info(f"YOLO mode enabled with image: {args.image}")
         except Exception as e:
-            logger.error(f"❌ Failed to initialize YOLO: {e}")
+            logger.error(f"Failed to initialize YOLO: {e}")
             sys.exit(1)
 
     logger.info("=" * 60)
@@ -293,7 +294,7 @@ def main():
 
     try:
         # Create MQTT connection
-        logger.info("\n🔄 Connecting to AWS IoT Core...")
+        logger.info("\nConnecting to AWS IoT Core...")
         mqtt_connection = mqtt_connection_builder.mtls_from_path(
             endpoint=config["endpoint"],
             cert_filepath=config["cert_path"],
@@ -316,11 +317,11 @@ def main():
         while args.iterations < 0 or iteration < args.iterations:
             if iteration > 0:
                 logger.info(
-                    f"\n⏳ Waiting {args.interval} seconds before next message..."
+                    f"\nWaiting {args.interval} seconds before next message..."
                 )
                 time.sleep(args.interval)
 
-            logger.info(f"\n📨 Message {iteration + 1}")
+            logger.info(f"\nMessage {iteration + 1}")
 
             # Generate payload
             if yolo:
@@ -352,7 +353,7 @@ def main():
         time.sleep(2)
 
         # Disconnect
-        logger.info("\n🔌 Disconnecting...")
+        logger.info("\nDisconnecting...")
         disconnect_future = mqtt_connection.disconnect()
         disconnect_future.result()
 
@@ -361,11 +362,11 @@ def main():
         logger.info("=" * 60)
 
     except KeyboardInterrupt:
-        logger.info("\n\n⚠️  Interrupted by user")
+        logger.info("\n\nInterrupted by user")
         mqtt_connection.disconnect()
 
     except Exception as e:
-        logger.error(f"\n❌ ERROR: {str(e)}")
+        logger.error(f"\nERROR: {str(e)}")
         logger.error("=" * 60)
         sys.exit(1)
 
