@@ -232,9 +232,20 @@ def main():
         help="Image path for YOLO inference (default: assets/bus.jpg)",
     )
     parser.add_argument(
+        "--video",
+        default=None,
+        help="Video path for YOLO inference (takes precedence over --image)",
+    )
+    parser.add_argument(
         "--model",
         default="models/yolo11n.pt",
         help="YOLO model path (default: models/yolo11n.pt)",
+    )
+    parser.add_argument(
+        "--frame-skip",
+        type=int,
+        default=0,
+        help="Number of frames to skip between video inferences (default: 0)",
     )
 
     # Publisher arguments
@@ -272,9 +283,13 @@ def main():
             sys.exit(1)
 
         try:
-            yolo = YOLOProcessor(args.model)
-            yolo.set_image(args.image)
-            logger.info(f"YOLO mode enabled with image: {args.image}")
+            yolo = YOLOProcessor(args.model, frame_skip=args.frame_skip)
+            if args.video:
+                yolo.set_video(args.video)
+                logger.info(f"YOLO mode enabled with video: {args.video}")
+            else:
+                yolo.set_image(args.image)
+                logger.info(f"YOLO mode enabled with image: {args.image}")
         except Exception as e:
             logger.error(f"Failed to initialize YOLO: {e}")
             sys.exit(1)
@@ -369,6 +384,9 @@ def main():
         logger.error(f"\nERROR: {str(e)}")
         logger.error("=" * 60)
         sys.exit(1)
+    finally:
+        if yolo:
+            yolo.cleanup()
 
 
 if __name__ == "__main__":

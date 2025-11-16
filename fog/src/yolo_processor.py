@@ -1,17 +1,18 @@
 #!/usr/bin/env python3
 """
 YOLO Parking Space Detector
-Real inference from images for TeraSpot edge publisher
+Supports image or video inference for the TeraSpot edge publisher
 """
 
 from ultralytics import YOLO
 import logging
+import cv2
 
 logger = logging.getLogger(__name__)
 
 
 class YOLOProcessor:
-    def __init__(self, model_path="models/yolo11n.pt"):
+    def __init__(self, model_path="models/yolo11n.pt", frame_skip=0):
         """Initialize YOLO model"""
         try:
             self.model = YOLO(model_path)
@@ -21,11 +22,51 @@ class YOLOProcessor:
             raise
 
         self.image_path = None
+        self.video_path = None
+        self.cap = None
+        self.source_type = "image"
+        self.frame_skip = max(frame_skip, 0)
 
     def set_image(self, image_path):
         """Set image for inference"""
+        self.cleanup()
         self.image_path = image_path
+        self.source_type = "image"
         logger.info(f"Image set to: {image_path}")
+
+    def set_video(self, video_path):
+        """Set video source for inference"""
+        self.cleanup()
+        cap = cv2.VideoCapture(video_path)
+        if not cap.isOpened():
+            raise ValueError(f"Unable to open video source: {video_path}")
+
+        self.cap = cap
+        self.video_path = video_path
+        self.source_type = "video"
+        logger.info(f"Video source set to: {video_path}")
+
+    def cleanup(self):
+        """Release any open capture resources"""
+        if self.cap is not None:
+            self.cap.release()
+            self.cap = None
+
+    def _read_video_frame(self):
+        """Read the next frame from the configured capture"""
+        if self.cap is None:
+            raise ValueError("Video source not initialized")
+
+        # Optionally skip frames to reduce inference cost
+        for _ in range(self.frame_skip + 1):
+            ret, frame = self.cap.read()
+            if not ret:
+                # Restart the capture from the beginning to loop the video
+                self.cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+                ret, frame = self.cap.read()
+                if not ret:
+                    raise RuntimeError("Failed to read frame from video source")
+        return frame
 
     def detect_parking_spaces(self, image_path=None, total_spaces=30):
         """
@@ -38,13 +79,18 @@ class YOLOProcessor:
         Returns:
             Dictionary with spaces, occupied count, and inference metadata
         """
-        img_path = image_path or self.image_path
-        if not img_path:
-            raise ValueError("No image path provided")
+        if self.source_type == "video":
+            frame = self._read_video_frame()
+            inference_source = frame
+        else:
+            img_path = image_path or self.image_path
+            if not img_path:
+                raise ValueError("No image path provided")
+            inference_source = img_path
 
         try:
             # Run YOLO inference
-            results = self.model(img_path, conf=0.5, verbose=False)
+            results = self.model(inference_source, conf=0.5, verbose=False)
             detections = results[0].boxes.data  # Get bounding boxes
 
             num_detected_objects = len(detections)

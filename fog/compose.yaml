@@ -12,4 +12,10 @@ services:
       PYTHONUNBUFFERED: ${PYTHONUNBUFFERED}
     stdin_open: true
     tty: true
-    command: python src/edge_publisher.py --iterations -1 --interval 5 --use-yolo
+    command: >-
+      python src/edge_publisher.py
+      --use-yolo
+      --video assets/parking_lot.mp4
+      --frame-skip 5
+      --iterations -1
+      --interval 5
