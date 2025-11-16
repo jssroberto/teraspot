@@ -1,0 +1,31 @@
+{
+  "name": "TeraSpot Fog Development",
+  "dockerFile": "../Dockerfile",
+  "context": "..",
+  "runArgs": [
+    "--init"
+  ],
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "python.pythonPath": "/usr/local/bin/python",
+        "terminal.integrated.shell.linux": "/bin/bash"
+      },
+      "extensions": [
+        "ms-python.python",
+        "ms-azuretools.vscode-docker"
+      ]
+    }
+  },
+  "remoteUser": "appuser",
+  "mounts": [
+    "source=${localWorkspaceFolder}/fog.env,target=/app/fog.env,type=bind,consistency=cached"
+  ],
+  "postCreateCommand": "poetry install",
+  "forwardPorts": [
+    8000
+  ],
+  "remoteEnv": {
+    "PYTHONUNBUFFERED": "1"
+  }
+}

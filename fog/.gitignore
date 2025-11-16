@@ -91,7 +91,12 @@ fog/.env
 .env
 
 # AWS IoT certificates directory
-fog/certs/
+**/certs/
+
+# PEM and certificate files
+*.pem
+*.key
+*.crt
 
 # Virtual environment
 venv/

@@ -1,10 +1,13 @@
 services:
   teraspot-fog:
     build: .
-    volumes:
-      - ./src:/app/src
-      - ./certs:/app/certs
-      - ./fog.env:/app/.env
-    command: poetry run python src/edge_publisher.py --iterations 5 --interval 10 --use-yolo
+    restart: unless-stopped
+    environment:
+      AWS_IOT_ENDPOINT: ${AWS_IOT_ENDPOINT}
+      AWS_IOT_CERT_PATH: ${AWS_IOT_CERT_PATH}
+      AWS_IOT_THING_NAME: ${AWS_IOT_THING_NAME}
+      AWS_IOT_TOPIC: ${AWS_IOT_TOPIC}
+      PYTHONUNBUFFERED: ${PYTHONUNBUFFERED}
     stdin_open: true
     tty: true
+    command: python src/edge_publisher.py --iterations -1 --interval 5 --use-yolo
