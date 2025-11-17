@@ -1,7 +1,14 @@
 ## TeraSpot Fog Node
 
-This edge component publishes parking occupancy readings to AWS IoT Core. It can
-run in two modes:
+This edge component publishes parking occupancy readings to AWS IoT Core. It now
+emits **per-space state change events** so the cloud backend receives only the
+updates it needs. Configure the publisher with:
+
+- `AWS_IOT_ENDPOINT`, `AWS_IOT_CERT_PATH`, `AWS_IOT_THING_NAME`
+- `AWS_IOT_FACILITY_ID` and `AWS_IOT_ZONE_ID` (used to derive the topic
+  `teraspot/{facility}/{zone}/{thing}/status`, unless `AWS_IOT_TOPIC` is set)
+
+At runtime it can operate in two modes:
 
 - **Mocked data** using synthetic parking slots (default).
 - **YOLO-based inference** using either a still image or a looping video.

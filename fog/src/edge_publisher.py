@@ -34,19 +34,32 @@ logger = logging.getLogger(__name__)
 
 def load_config_from_env():
     """Load configuration from environment variables with validation"""
+    base_cert_path = os.getenv("AWS_IOT_CERT_PATH", "./certs")
+    facility_id = os.getenv("AWS_IOT_FACILITY_ID")
+    zone_id = os.getenv("AWS_IOT_ZONE_ID")
+
     config = {
         "endpoint": os.getenv("AWS_IOT_ENDPOINT"),
-        "cert_path": os.getenv("AWS_IOT_CERT_PATH", "./certs")
-        + "/device-certificate.pem.crt",
-        "key_path": os.getenv("AWS_IOT_CERT_PATH", "./certs") + "/private-key.pem.key",
-        "ca_path": os.getenv("AWS_IOT_CERT_PATH", "./certs") + "/AmazonRootCA1.pem",
+        "cert_path": os.path.join(base_cert_path, "device-certificate.pem.crt"),
+        "key_path": os.path.join(base_cert_path, "private-key.pem.key"),
+        "ca_path": os.path.join(base_cert_path, "AmazonRootCA1.pem"),
         "thing_name": os.getenv("AWS_IOT_THING_NAME", "teraspot-edge-device"),
-        "topic": os.getenv("AWS_IOT_TOPIC", "teraspot/parking/status"),
+        "facility_id": facility_id,
+        "zone_id": zone_id,
     }
 
-    # Validate endpoint
-    if not config["endpoint"]:
-        logger.error("AWS_IOT_ENDPOINT not set")
+    # Validate required parameters
+    missing = [
+        key
+        for key, value in (
+            ("AWS_IOT_ENDPOINT", config["endpoint"]),
+            ("AWS_IOT_FACILITY_ID", facility_id),
+            ("AWS_IOT_ZONE_ID", zone_id),
+        )
+        if not value
+    ]
+    if missing:
+        logger.error("Missing required environment variables: %s", ", ".join(missing))
         sys.exit(1)
 
     # Validate certificates exist
@@ -55,9 +68,20 @@ def load_config_from_env():
             logger.error(f"Certificate not found: {config[key]}")
             sys.exit(1)
 
+    topic_override = os.getenv("AWS_IOT_TOPIC")
+    if topic_override:
+        config["topic"] = topic_override
+    else:
+        config["topic"] = (
+            f"teraspot/{config['facility_id']}/{config['zone_id']}/"
+            f"{config['thing_name']}/status"
+        )
+
     logger.info("Configuration loaded from environment")
     logger.info(f"   Endpoint: {config['endpoint']}")
     logger.info(f"   Thing Name: {config['thing_name']}")
+    logger.info(f"   Facility: {config['facility_id']}")
+    logger.info(f"   Zone: {config['zone_id']}")
     logger.info(f"   Topic: {config['topic']}")
 
     return config
@@ -135,85 +159,65 @@ def generate_mocked_spaces(count=30):
     }
 
 
-def create_payload(device_id, num_spaces=30, data_source="mocked", extra_data=None):
-    """
-    Create MQTT message payload
+class SpaceStateTracker:
+    """In-memory cache to compute per-space state changes"""
 
-    Args:
-        device_id: Unique device identifier
-        num_spaces: Number of parking spaces
-        data_source: Source of data (mocked, yolo11n, etc.)
-        extra_data: Additional data from YOLO (detections, etc.)
+    def __init__(self):
+        self._last_states = {}
 
-    Returns:
-        JSON payload as dictionary
-    """
-    payload = {
-        "timestamp": datetime.now(UTC).isoformat(),
-        "device_id": device_id,
-        "data_source": data_source,
-    }
+    def detect_changes(self, current_spaces):
+        """Return list of spaces whose status changed since last snapshot"""
+        changes = []
+        for space_id, data in current_spaces.items():
+            status = data.get("status")
+            prev = self._last_states.get(space_id)
+            if not prev or prev.get("status") != status:
+                changes.append(
+                    {
+                        "space_id": space_id,
+                        "status": status,
+                        "confidence": data.get("confidence"),
+                    }
+                )
+            # Always update the cache with latest values
+            self._last_states[space_id] = {
+                "status": status,
+                "confidence": data.get("confidence"),
+            }
+        return changes
 
-    # Add extra YOLO data if available
-    if extra_data:
-        payload.update(extra_data)
-    else:
-        # Generate mocked data
-        mocked = generate_mocked_spaces(num_spaces)
-        payload.update(
+
+def build_change_payload(changes, metadata):
+    """Attach metadata (device/facility/zone/timestamp) to change events"""
+    timestamp = datetime.now(UTC).isoformat()
+    enriched = []
+    for change in changes:
+        enriched.append(
             {
-                "spaces": mocked["spaces"],
-                "total_occupied": mocked["total_occupied"],
-                "total_vacant": mocked["total_vacant"],
+                "space_id": change["space_id"],
+                "status": change["status"],
+                "confidence": change.get("confidence"),
+                "timestamp": timestamp,
+                "device_id": metadata["device_id"],
+                "facility_id": metadata["facility_id"],
+                "zone_id": metadata["zone_id"],
+                "data_source": metadata["data_source"],
             }
         )
+    return enriched
 
-    return payload
 
-
-def publish_message(mqtt_connection, topic, payload, verbose=True):
-    """
-    Publish message to MQTT topic
-
-    Args:
-        mqtt_connection: Active MQTT connection
-        topic: MQTT topic to publish to
-        payload: Dictionary to publish as JSON
-        verbose: If True, print message details
-    """
-    if verbose:
-        total_spaces = payload["total_occupied"] + payload["total_vacant"]
-        occupancy_rate = (
-            payload["total_occupied"] / total_spaces * 100 if total_spaces > 0 else 0
-        )
-
-        # Count low-confidence detections
-        low_confidence_count = 0
-        if "spaces" in payload:
-            for space in payload["spaces"].values():
-                if space.get("confidence", 1.0) < 0.70:
-                    low_confidence_count += 1
-
-        logger.info(f"\nPublishing to topic: {topic}")
-        logger.info(
-            f"   Occupied: {payload['total_occupied']} | "
-            f"Vacant: {payload['total_vacant']} | "
-            f"Rate: {occupancy_rate:.1f}% | "
-            f"Source: {payload['data_source']}"
-        )
-
-        if low_confidence_count > 0:
-            logger.info(f"   Low Confidence Detections: {low_confidence_count}")
-
-        if "detections_count" in payload:
-            logger.info(f"   Detections: {payload['detections_count']}")
-
-    mqtt_connection.publish(
-        topic=topic, payload=json.dumps(payload), qos=mqtt.QoS.AT_LEAST_ONCE
+def publish_change_events(mqtt_connection, topic, events):
+    """Publish per-space change events to MQTT"""
+    logger.info(
+        "\nPublishing %d state change event(s) to topic: %s",
+        len(events),
+        topic,
     )
-
-    if verbose:
-        logger.info("   Message published successfully!")
+    mqtt_connection.publish(
+        topic=topic, payload=json.dumps(events), qos=mqtt.QoS.AT_LEAST_ONCE
+    )
+    logger.info("   Message published successfully!")
 
 
 def main():
@@ -272,6 +276,8 @@ def main():
 
     # Load configuration from environment
     config = load_config_from_env()
+
+    change_tracker = SpaceStateTracker()
 
     # Initialize YOLO if requested
     yolo = None
@@ -338,31 +344,39 @@ def main():
 
             logger.info(f"\nMessage {iteration + 1}")
 
-            # Generate payload
+            # Generate snapshot
+            data_source = "yolo11n" if yolo else "mocked"
             if yolo:
-                # Use YOLO inference
-                yolo_data = yolo.detect_parking_spaces(total_spaces=args.spaces)
-                payload = create_payload(
-                    device_id=args.device_id,
-                    data_source="yolo11n",
-                    extra_data={
-                        "spaces": yolo_data["spaces"],
-                        "total_occupied": yolo_data["total_occupied"],
-                        "total_vacant": yolo_data["total_vacant"],
-                        "detections_count": yolo_data["detections_count"],
-                        "vehicle_count": yolo_data["vehicle_count"],
-                    },
-                )
+                snapshot = yolo.detect_parking_spaces(total_spaces=args.spaces)
             else:
-                # Use mocked data
-                payload = create_payload(
-                    device_id=args.device_id,
-                    num_spaces=args.spaces,
-                    data_source="mocked",
-                )
+                snapshot = generate_mocked_spaces(args.spaces)
 
-            # Publish
-            publish_message(mqtt_connection, config["topic"], payload)
+            spaces = snapshot["spaces"]
+            data_metadata = {
+                "device_id": args.device_id,
+                "facility_id": config["facility_id"],
+                "zone_id": config["zone_id"],
+                "data_source": data_source,
+            }
+
+            changes = change_tracker.detect_changes(spaces)
+            if not changes:
+                logger.info("   No state changes detected; skipping publish")
+                iteration += 1
+                continue
+
+            events_payload = build_change_payload(changes, data_metadata)
+
+            logger.info(
+                "   Occupied: %d | Vacant: %d | Source: %s",
+                snapshot["total_occupied"],
+                snapshot["total_vacant"],
+                data_source,
+            )
+            if snapshot.get("detections_count") is not None:
+                logger.info("   Detections: %d", snapshot["detections_count"])
+
+            publish_change_events(mqtt_connection, config["topic"], events_payload)
             iteration += 1
 
         time.sleep(2)
