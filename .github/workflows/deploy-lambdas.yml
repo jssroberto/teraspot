@@ -59,8 +59,10 @@ jobs:
       - name: Deploy ingest_status
         run: |
           cd backend/lambdas/ingest_status
+          rm -rf package lambda.zip
+          mkdir -p package
           pip install -r requirements.txt -t package/
-          cp lambda_function.py package/
+          cp -R ./*.py package/
           cd package && zip -r ../lambda.zip . && cd ..
           aws lambda update-function-code \
             --function-name teraspot-ingest-lambda \
