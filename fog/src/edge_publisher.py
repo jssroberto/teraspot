@@ -15,6 +15,10 @@ import time
 import argparse
 import logging
 import random
+from typing import List, Optional
+
+import boto3
+from botocore.exceptions import BotoCoreError, ClientError
 
 # Import YOLO processor (if using real inference)
 try:
@@ -85,6 +89,64 @@ def load_config_from_env():
     logger.info(f"   Topic: {config['topic']}")
 
     return config
+
+
+def _extract_roi_spaces(config_payload):
+    if isinstance(config_payload, dict):
+        spaces = config_payload.get("spaces")
+    elif isinstance(config_payload, list):
+        spaces = config_payload
+    else:
+        spaces = None
+
+    if isinstance(spaces, list) and spaces:
+        return spaces
+
+    raise ValueError(
+        "ROI configuration must include a non-empty 'spaces' list with polygons"
+    )
+
+
+def _load_roi_config_from_file(path):
+    with open(path, "r", encoding="utf-8") as handle:
+        payload = json.load(handle)
+    return _extract_roi_spaces(payload)
+
+
+def _load_roi_config_from_s3(bucket, key, region=None):
+    client = boto3.client("s3", region_name=region)
+    response = client.get_object(Bucket=bucket, Key=key)
+    body = response["Body"].read().decode("utf-8")
+    payload = json.loads(body)
+    return _extract_roi_spaces(payload)
+
+
+def resolve_roi_spaces(args) -> Optional[List[dict]]:
+    if args.roi_config:
+        try:
+            spaces = _load_roi_config_from_file(args.roi_config)
+            logger.info("Loaded ROI config from %s", args.roi_config)
+            return spaces
+        except (OSError, ValueError, json.JSONDecodeError) as exc:
+            logger.error("Failed to load ROI config file: %s", exc)
+            sys.exit(1)
+
+    if args.roi_s3_bucket and args.roi_s3_key:
+        try:
+            spaces = _load_roi_config_from_s3(
+                args.roi_s3_bucket, args.roi_s3_key, region=args.roi_s3_region
+            )
+            logger.info(
+                "Loaded ROI config from s3://%s/%s",
+                args.roi_s3_bucket,
+                args.roi_s3_key,
+            )
+            return spaces
+        except (BotoCoreError, ClientError, ValueError, json.JSONDecodeError) as exc:
+            logger.error("Failed to download ROI config from S3: %s", exc)
+            sys.exit(1)
+
+    return None
 
 
 def on_connection_success(connection, callback_data):
@@ -251,6 +313,26 @@ def main():
         default=0,
         help="Number of frames to skip between video inferences (default: 0)",
     )
+    parser.add_argument(
+        "--roi-config",
+        default=None,
+        help="Path to parking ROI JSON configuration",
+    )
+    parser.add_argument(
+        "--roi-s3-bucket",
+        default=None,
+        help="S3 bucket containing ROI config (alternative to --roi-config)",
+    )
+    parser.add_argument(
+        "--roi-s3-key",
+        default=None,
+        help="S3 object key for ROI config",
+    )
+    parser.add_argument(
+        "--roi-s3-region",
+        default=None,
+        help="Optional AWS region for ROI S3 bucket",
+    )
 
     # Publisher arguments
     parser.add_argument(
@@ -278,6 +360,15 @@ def main():
     config = load_config_from_env()
 
     change_tracker = SpaceStateTracker()
+    roi_spaces = None
+    if args.use_yolo:
+        roi_spaces = resolve_roi_spaces(args)
+        if not roi_spaces:
+            logger.error(
+                "ROI configuration is required when running YOLO inference. "
+                "Provide --roi-config or --roi-s3-bucket/--roi-s3-key."
+            )
+            sys.exit(1)
 
     # Initialize YOLO if requested
     yolo = None
@@ -296,6 +387,9 @@ def main():
             else:
                 yolo.set_image(args.image)
                 logger.info(f"YOLO mode enabled with image: {args.image}")
+
+            if roi_spaces:
+                yolo.set_roi_spaces(roi_spaces)
         except Exception as e:
             logger.error(f"Failed to initialize YOLO: {e}")
             sys.exit(1)
@@ -311,6 +405,8 @@ def main():
         f" Iterations: {args.iterations if args.iterations > 0 else 'INFINITE'}"
     )
     logger.info(f" Interval: {args.interval}s")
+    if roi_spaces:
+        logger.info(f" ROI Spaces Loaded: {len(roi_spaces)}")
     logger.info("=" * 60)
 
     try:

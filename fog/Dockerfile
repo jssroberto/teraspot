@@ -38,4 +38,4 @@ RUN chown -R appuser:appuser /app
 
 USER appuser
 
-CMD ["python", "src/edge_publisher.py", "--use-yolo", "--video", "assets/parking_lot.mp4", "--frame-skip", "5", "--iterations", "-1", "--interval", "5"]
+CMD ["python", "src/edge_publisher.py", "--use-yolo", "--video", "assets/parking_lot.mp4", "--frame-skip", "5", "--iterations", "-1", "--interval", "5", "--roi-config", "config/roi_sample.json"]
