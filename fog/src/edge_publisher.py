@@ -5,20 +5,20 @@ Publishes parking occupancy data from edge device to AWS IoT Core
 Supports both mocked data and real YOLO inference
 """
 
-from awscrt import mqtt
 from awsiot import mqtt_connection_builder
-import json
-import os
-import sys
-from datetime import datetime, UTC
-import time
 import argparse
 import logging
-import random
-from typing import List, Optional
+import sys
+import time
 
-import boto3
-from botocore.exceptions import BotoCoreError, ClientError
+from config_utils import load_config_from_env, resolve_roi_spaces
+from publisher_utils import (
+    SpaceStateTracker,
+    build_change_payload,
+    generate_mocked_spaces,
+    publish_change_events,
+    wait_interval,
+)
 
 # Import YOLO processor (if using real inference)
 try:
@@ -34,119 +34,7 @@ logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
-
-
-def load_config_from_env():
-    """Load configuration from environment variables with validation"""
-    base_cert_path = os.getenv("AWS_IOT_CERT_PATH", "./certs")
-    facility_id = os.getenv("AWS_IOT_FACILITY_ID")
-    zone_id = os.getenv("AWS_IOT_ZONE_ID")
-
-    config = {
-        "endpoint": os.getenv("AWS_IOT_ENDPOINT"),
-        "cert_path": os.path.join(base_cert_path, "device-certificate.pem.crt"),
-        "key_path": os.path.join(base_cert_path, "private-key.pem.key"),
-        "ca_path": os.path.join(base_cert_path, "AmazonRootCA1.pem"),
-        "thing_name": os.getenv("AWS_IOT_THING_NAME", "teraspot-edge-device"),
-        "facility_id": facility_id,
-        "zone_id": zone_id,
-    }
-
-    # Validate required parameters
-    missing = [
-        key
-        for key, value in (
-            ("AWS_IOT_ENDPOINT", config["endpoint"]),
-            ("AWS_IOT_FACILITY_ID", facility_id),
-            ("AWS_IOT_ZONE_ID", zone_id),
-        )
-        if not value
-    ]
-    if missing:
-        logger.error("Missing required environment variables: %s", ", ".join(missing))
-        sys.exit(1)
-
-    # Validate certificates exist
-    for key in ["cert_path", "key_path", "ca_path"]:
-        if not os.path.isfile(config[key]):
-            logger.error(f"Certificate not found: {config[key]}")
-            sys.exit(1)
-
-    topic_override = os.getenv("AWS_IOT_TOPIC")
-    if topic_override:
-        config["topic"] = topic_override
-    else:
-        config["topic"] = (
-            f"teraspot/{config['facility_id']}/{config['zone_id']}/"
-            f"{config['thing_name']}/status"
-        )
-
-    logger.info("Configuration loaded from environment")
-    logger.info(f"   Endpoint: {config['endpoint']}")
-    logger.info(f"   Thing Name: {config['thing_name']}")
-    logger.info(f"   Facility: {config['facility_id']}")
-    logger.info(f"   Zone: {config['zone_id']}")
-    logger.info(f"   Topic: {config['topic']}")
-
-    return config
-
-
-def _extract_roi_spaces(config_payload):
-    if isinstance(config_payload, dict):
-        spaces = config_payload.get("spaces")
-    elif isinstance(config_payload, list):
-        spaces = config_payload
-    else:
-        spaces = None
-
-    if isinstance(spaces, list) and spaces:
-        return spaces
-
-    raise ValueError(
-        "ROI configuration must include a non-empty 'spaces' list with polygons"
-    )
-
-
-def _load_roi_config_from_file(path):
-    with open(path, "r", encoding="utf-8") as handle:
-        payload = json.load(handle)
-    return _extract_roi_spaces(payload)
-
-
-def _load_roi_config_from_s3(bucket, key, region=None):
-    client = boto3.client("s3", region_name=region)
-    response = client.get_object(Bucket=bucket, Key=key)
-    body = response["Body"].read().decode("utf-8")
-    payload = json.loads(body)
-    return _extract_roi_spaces(payload)
-
-
-def resolve_roi_spaces(args) -> Optional[List[dict]]:
-    if args.roi_config:
-        try:
-            spaces = _load_roi_config_from_file(args.roi_config)
-            logger.info("Loaded ROI config from %s", args.roi_config)
-            return spaces
-        except (OSError, ValueError, json.JSONDecodeError) as exc:
-            logger.error("Failed to load ROI config file: %s", exc)
-            sys.exit(1)
-
-    if args.roi_s3_bucket and args.roi_s3_key:
-        try:
-            spaces = _load_roi_config_from_s3(
-                args.roi_s3_bucket, args.roi_s3_key, region=args.roi_s3_region
-            )
-            logger.info(
-                "Loaded ROI config from s3://%s/%s",
-                args.roi_s3_bucket,
-                args.roi_s3_key,
-            )
-            return spaces
-        except (BotoCoreError, ClientError, ValueError, json.JSONDecodeError) as exc:
-            logger.error("Failed to download ROI config from S3: %s", exc)
-            sys.exit(1)
-
-    return None
+ 
 
 
 def on_connection_success(connection, callback_data):
@@ -163,125 +51,6 @@ def on_connection_failure(connection, callback_data):
 def on_connection_closed(connection, callback_data):
     """Callback when connection closes"""
     logger.info("Connection closed")
-
-
-def generate_mocked_spaces(count=30):
-    """
-    Generate mocked parking spaces with realistic confidence distribution
-
-    Args:
-        count: Number of parking spaces to generate
-
-    Returns:
-        Dictionary with spaces, total_occupied, and total_vacant
-    """
-    spaces = {}
-    occupied_count = 0
-
-    # Confidence distribution: 70% high confidence, 20% medium confidence, 10% low confidence
-    confidence_distribution = {
-        "high": (0.90, 1.00, 0.7),  # (min, max, probability)
-        "medium": (0.70, 0.89, 0.2),
-        "low": (0.40, 0.69, 0.1),
-    }
-
-    # Simulate realistic parking pattern: ~60% occupied
-    for i in range(1, count + 1):
-        space_id = f"A-{i:02d}"
-        is_occupied = random.random() < 0.6
-
-        # Determine confidence level based on distribution
-        rand = random.random()
-        cumulative = 0
-        confidence_level = "high"
-
-        for level, (min_conf, max_conf, prob) in confidence_distribution.items():
-            cumulative += prob
-            if rand <= cumulative:
-                confidence_level = level
-                min_conf, max_conf, _ = confidence_distribution[level]
-                confidence = round(
-                    min_conf + random.random() * (max_conf - min_conf), 3
-                )
-                break
-
-        spaces[space_id] = {
-            "status": "occupied" if is_occupied else "vacant",
-            "confidence": confidence,
-            "confidence_level": confidence_level,  # Added for clarity
-        }
-
-        if is_occupied:
-            occupied_count += 1
-
-    return {
-        "spaces": spaces,
-        "total_occupied": occupied_count,
-        "total_vacant": count - occupied_count,
-    }
-
-
-class SpaceStateTracker:
-    """In-memory cache to compute per-space state changes"""
-
-    def __init__(self):
-        self._last_states = {}
-
-    def detect_changes(self, current_spaces):
-        """Return list of spaces whose status changed since last snapshot"""
-        changes = []
-        for space_id, data in current_spaces.items():
-            status = data.get("status")
-            prev = self._last_states.get(space_id)
-            if not prev or prev.get("status") != status:
-                changes.append(
-                    {
-                        "space_id": space_id,
-                        "status": status,
-                        "confidence": data.get("confidence"),
-                    }
-                )
-            # Always update the cache with latest values
-            self._last_states[space_id] = {
-                "status": status,
-                "confidence": data.get("confidence"),
-            }
-        return changes
-
-
-def build_change_payload(changes, metadata):
-    """Attach metadata (device/facility/zone/timestamp) to change events"""
-    timestamp = datetime.now(UTC).isoformat()
-    enriched = []
-    for change in changes:
-        enriched.append(
-            {
-                "space_id": change["space_id"],
-                "status": change["status"],
-                "confidence": change.get("confidence"),
-                "timestamp": timestamp,
-                "device_id": metadata["device_id"],
-                "facility_id": metadata["facility_id"],
-                "zone_id": metadata["zone_id"],
-                "data_source": metadata["data_source"],
-            }
-        )
-    return enriched
-
-
-def publish_change_events(mqtt_connection, topic, events):
-    """Publish per-space change events to MQTT"""
-    logger.info(
-        "\nPublishing %d state change event(s) to topic: %s",
-        len(events),
-        topic,
-    )
-    mqtt_connection.publish(
-        topic=topic, payload=json.dumps(events), qos=mqtt.QoS.AT_LEAST_ONCE
-    )
-    logger.info("   Message published successfully!")
-
-
 def main():
     """Main function"""
     parser = argparse.ArgumentParser(description="TeraSpot Edge Publisher")
