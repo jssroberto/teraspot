@@ -83,6 +83,12 @@ def main():
         help="Number of frames to skip between video inferences (default: 0)",
     )
     parser.add_argument(
+        "--conf-threshold",
+        type=float,
+        default=0.75,
+        help="Confidence threshold for YOLO inference (default: 0.75)",
+    )
+    parser.add_argument(
         "--roi-config",
         default=None,
         help="Path to parking ROI JSON configuration",
@@ -211,7 +217,9 @@ def main():
             data_source = "yolo11n" if yolo else "mocked"
             if yolo:
                 snapshot = yolo.detect_parking_spaces(
-                    total_spaces=args.spaces, burst_size=5
+                    total_spaces=args.spaces,
+                    burst_size=5,
+                    conf_threshold=args.conf_threshold,
                 )
             else:
                 snapshot = generate_mocked_spaces(args.spaces)

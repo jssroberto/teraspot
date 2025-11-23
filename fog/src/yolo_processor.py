@@ -155,7 +155,9 @@ class YOLOProcessor:
                     break
         return occupancy
 
-    def detect_parking_spaces(self, image_path=None, total_spaces=30, burst_size=1):
+    def detect_parking_spaces(
+        self, image_path=None, total_spaces=30, burst_size=1, conf_threshold=0.5
+    ):
         """
         Run YOLO inference with temporal smoothing.
 
@@ -163,6 +165,7 @@ class YOLOProcessor:
             image_path: Path to image (optional, uses self.image_path if not provided)
             total_spaces: Total number of parking spaces in lot
             burst_size: Number of frames to process for majority voting (default: 1)
+            conf_threshold: Confidence threshold for YOLO inference (default: 0.5)
 
         Returns:
             Dictionary with spaces, occupied count, and inference metadata
@@ -187,7 +190,10 @@ class YOLOProcessor:
             try:
                 # Run YOLO inference
                 results = self.model(
-                    inference_source, conf=0.5, verbose=False, classes=VEHICLE_CLASSES
+                    inference_source,
+                    conf=conf_threshold,
+                    verbose=False,
+                    classes=VEHICLE_CLASSES,
                 )
                 boxes = results[0].boxes
                 num_detected_objects = int(len(boxes) if boxes is not None else 0)
