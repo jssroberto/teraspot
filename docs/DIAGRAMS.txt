@@ -1,0 +1,372 @@
+@startuml
+!theme plain
+' UML Component Diagram for AWS-based Parking Status System
+skinparam componentStyle rectangle
+skinparam wrapWidth 200
+skinparam maxMessageSize 200
+left to right direction
+
+actor Admin as Admin
+actor "End User" as User
+
+package "Frontend & Configuration UI" {
+component "ROI Config UI\n(Static Web on S3)" as ROI_UI
+component "Parking Status Web App\n(Static Web on S3)" as WebApp_UI
+component "Amazon Cognito\n(User Pool)" as Cognito_UP
+}
+
+package "Backend API Gateway" {
+component "API Gateway\nREST (HTTPS) & WebSocket (WSS)" as APIGW
+component "Cognito Authorizer" as APIGW_Authorizer
+component "IAM Authorizer\n(Pod/EC2 access)" as APIGW_IAM_Auth
+}
+
+package "Backend Logic (Serverless)" {
+component "Lambda: Save ROI Config" as Lambda_Config
+component "Lambda: Ingest Status" as Lambda_Ingest
+component "Lambda: Read Status" as Lambda_Read
+component "Lambda: Stream Analytics & Notifier" as Lambda_Analytics
+}
+
+package "Data Stores & Observability" {
+database "DynamoDB\n(Parking Space State)" as DDB
+collections "S3 Bucket\n(Website Files, ROI Config JSONs)" as S3
+component "DynamoDB Stream" as DDB_Stream
+component "Amazon Timestream\n(Historical Occupancy)" as Timestream
+component "CloudWatch\n(Metrics, Logs, Alarms)" as CloudWatch
+}
+
+package "Messaging & Error Handling" {
+component "SNS Topic\n(Admin Notifications)" as SNS
+component "SQS Dead-Letter Queue\n(Failed Ingests)" as SQS_DLQ
+component "AWS IoT Core\n(MQTT Broker)" as IoTCore
+}
+
+package "AI Compute Node (EC2)" {
+node "EC2 Instance g4dn.xlarge\n(Simulates 1 Jetson)" as EC2
+component "Docker Container\nYOLO11s Processor" as Containers
+component "Video Streams (4-6 cams)\n(Source)" as Camera_Stream
+}
+
+' === Frontend & Auth ===
+Admin --> ROI_UI : Uses
+User --> Cognito_UP : 1) Authenticate
+Cognito_UP --> User : 2) JWT
+User --> WebApp_UI : 3) Open App (with JWT)
+WebApp_UI --> APIGW : 4) Open WSS Connection
+WebApp_UI --> APIGW : 5) GET /spaces (with JWT)
+APIGW --> APIGW_Authorizer : Validate JWT
+APIGW_Authorizer --> Lambda_Read : Authorize invoke
+APIGW --> Lambda_Read : /spaces
+Lambda_Read --> DDB : Read items
+DDB --> Lambda_Read : Data
+Lambda_Read --> APIGW : JSON
+APIGW --> WebApp_UI : Initial data
+APIGW --> WebApp_UI : Push real-time updates (WSS)
+
+' === Config flow ===
+Admin --> ROI_UI
+ROI_UI --> APIGW : POST /config (HTTPS)
+APIGW --> Lambda_Config : /config
+Lambda_Config --> S3 : Write config.json
+
+' === AI Node & Ingest ===
+Camera_Stream --> Containers : Provide video
+Containers --> S3 : Read config.json (AWS SDK)
+EC2 --> APIGW_IAM_Auth : IAM Auth for API access
+Containers --> EC2 : Inherit instance profile
+Containers -up-> IoTCore : Publish status (MQTT)
+IoTCore -down-> Lambda_Ingest : IoT Rule triggers
+Lambda_Ingest --> DDB : Put/Update item
+Lambda_Ingest --> SQS_DLQ : On failure
+
+' === Monitoring ===
+Containers --> CloudWatch : Logs
+CloudWatch --> SNS : Alarm -> Notification
+
+' === Streams, Analytics, Alerts ===
+DDB --> DDB_Stream : Change events
+DDB_Stream --> Lambda_Analytics : Trigger
+Lambda_Analytics --> Timestream : Write historical data
+Lambda_Analytics --> SNS : Publish alerts
+Lambda_Analytics --> APIGW : Send realtime update (WSS)
+
+' === Admin Notification ===
+SNS --> Admin : Notify
+
+@enduml
+
+@startuml
+!theme plain
+‘ Frontend & Authentication
+skinparam componentStyle rectangle
+skinparam wrapWidth 200
+left to right direction
+
+actor Admin <<actor>>
+actor "End User" as User <<actor>>
+
+package "Frontend & Configuration UI" {
+component "ROI Config UI\n(S3 Static)" as ROI_UI <<UI>>
+component "Parking Status Web App\n(S3 Static)" as WebApp_UI <<UI>>
+component "Amazon Cognito\n(User Pool)" as Cognito_UP <<Auth>>
+}
+
+package "Backend API Gateway" {
+component "API Gateway\nREST & WebSocket" as APIGW <<Gateway>>
+component "Cognito Authorizer" as APIGW_Authorizer <<Authorizer>>
+}
+
+package "Backend Logic" {
+component "Lambda: Read Status" as Lambda_Read <<Lambda>>
+}
+
+' Flujos principales
+User --> Cognito_UP : 1) Authenticate
+Cognito_UP --> User : 2) JWT
+User --> WebApp_UI : 3) Open App (JWT)
+WebApp_UI --> APIGW : 4) Open WSS
+WebApp_UI --> APIGW : 5) GET /spaces (JWT)
+APIGW --> APIGW_Authorizer : Validate JWT
+APIGW_Authorizer --> Lambda_Read : Authorize
+APIGW --> Lambda_Read : /spaces
+Lambda_Read --> APIGW : JSON
+APIGW --> WebApp_UI : Initial + Realtime (WSS)
+Admin --> ROI_UI : Uses
+
+legend left
+= Leyenda =
+<<actor>>    : Actor externo
+<<UI>>       : Interfaz de usuario (web/app)
+<<Auth>>     : Servicio de autenticación
+<<Gateway>>  : Puerta de enlace/API
+<<Authorizer>>: Módulo de autorización
+<<Lambda>>   : Función backend (FaaS)
+endlegend
+@enduml
+
+
+@startuml
+!theme plain
+‘ Configuration & Intake
+skinparam componentStyle rectangle
+skinparam wrapWidth 200
+left to right direction
+
+actor Admin <<actor>>
+
+package "Frontend & Configuration UI" {
+component "ROI Config UI\n(S3 Static)" as ROI_UI <<UI>>
+}
+
+package "Backend API Gateway" {
+component "API Gateway\nREST" as APIGW <<Gateway.>>
+}
+
+package "Backend Logic" {
+component "Lambda: Save ROI Config" as Lambda_Config <<Lambda>>
+component "Lambda: Ingest Status" as Lambda_Ingest <<Lambda>>
+}
+
+package "Data Stores" {
+folder "S3 Bucket\n(website, config.json)" as S3 <<ObjectStorage>>
+database "DynamoDB\n(Parking Space State)" as DDB <<Database>>
+}
+
+package "Messaging" {
+component "SQS Dead-Letter Queue\n(Failed Ingests)" as SQS_DLQ <<Queue>>
+component "AWS IoT Core\n(MQTT Broker)" as IoTCore <<Broker>>
+}
+
+' Config
+Admin --> ROI_UI : Uses
+ROI_UI --> APIGW : POST /config
+APIGW --> Lambda_Config : /config
+Lambda_Config --> S3 : Write config.json
+
+' Ingesta
+component "Docker Container\n(YOLO11s)" as Containers <<Service>>
+Containers --> IoTCore : Publish status (MQTT)
+IoTCore --> Lambda_Ingest : IoT Rule triggers
+Lambda_Ingest --> DDB : Put/Update
+Lambda_Ingest --> SQS_DLQ : On failure
+
+legend left
+= Leyenda =
+<<actor>>        : Actor externo
+<<UI>>           : Interfaz de usuario
+<<Gateway>>      : Puerta de enlace/API
+<<Lambda>>       : Función backend (FaaS)
+<<Database>>     : Base de datos
+<<ObjectStorage>>: Almacenamiento de objetos
+<<Queue>>        : Cola de mensajes
+<<Broker>>       : Broker MQTT
+<<Service>>      : Servicio de proceso/worker
+endlegend
+@enduml
+
+@startuml
+!theme plain
+‘ Video processing
+skinparam componentStyle rectangle
+skinparam wrapWidth 200
+left to right direction
+
+node "EC2 Instance g4dn.xlarge\n(Simulates 1 Jetson)" as EC2 <<Node>>
+component "Docker Container\nYOLO11s Processor" as Containers <<Service>>
+component "Video Streams (4-6 cams)\n(Source)" as Camera_Stream <<ExternalSystem>>
+folder "S3 Bucket\n(config.json)" as S3 <<ObjectStorage>>
+cloud "AWS IoT Core\n(MQTT Broker)" as IoTCore <<Broker>>
+component "CloudWatch\n(Logs)" as CloudWatch <<Observability>>
+
+Camera_Stream --> Containers : Provide video
+EC2 -down- Containers : Runs container
+Containers --> S3 : Read config.json
+Containers --> IoTCore : Publish status (MQTT)
+Containers --> CloudWatch : Logs
+
+legend left
+= Leyenda =
+<<Node>>          : Nodo de despliegue (host/VM)
+<<Service>>       : Servicio/worker
+<<ExternalSystem>>: Fuente externa
+<<ObjectStorage>> : Almacenamiento de objetos
+<<Broker>>        : Broker MQTT
+<<Observability>> : Métricas y logs
+endlegend
+@enduml
+
+
+@startuml
+!theme plain
+‘ Analytics, Observability & Notifications
+skinparam componentStyle rectangle
+skinparam wrapWidth 220
+left to right direction
+
+database "DynamoDB\n(Parking Space State)" as DDB <<Database>>
+component "DynamoDB Stream" as DDB_Stream <<Stream>>
+component "Lambda: Stream Analytics\n& Notifier" as Lambda_Analytics <<Lambda>>
+component "Amazon Timestream\n(Historical Occupancy)" as Timestream <<TimeSeriesDB>>
+component "Amazon CloudWatch\n(Metrics, Logs, Alarms)" as CloudWatch <<Observability>>
+component "SNS Topic\n(Admin Notifications)" as SNS <<PubSub>>
+actor Admin <<actor>>
+
+DDB --> DDB_Stream : Change events
+DDB_Stream --> Lambda_Analytics : Trigger
+Lambda_Analytics --> Timestream : Write historical
+Lambda_Analytics --> SNS : Alerts
+CloudWatch --> SNS : Alarms
+SNS --> Admin : Notify
+
+legend left
+= Leyenda =
+<<actor>>       : Actor externo
+<<Database>>    : Base de datos operacional
+<<Stream>>      : Flujo de cambios/eventos
+<<Lambda>>      : Función backend (FaaS)
+<<TimeSeriesDB>>: BD de series de tiempo
+<<Observability>>: Métricas, logs, alarmas
+<<PubSub>>      : Mensajería publicación/suscripción
+endlegend
+@enduml
+
+
+@startuml
+!theme plain
+' Deployment
+skinparam componentStyle rectangle
+skinparam wrapWidth 200
+skinparam maxMessageSize 200
+
+' Set overall layout direction
+left to right direction
+
+' --- External Entities ---
+
+package "User Environment" {
+actor Browser as "User's Web Browser"
+}
+
+package "Physical World" {
+node Camera as "Physical Cameras\n(Source Feeds)"
+}
+
+' --- AWS Cloud Environment ---
+
+package "AWS Cloud (VPC)" {
+
+package "Compute: Amazon EC2" {
+node "EC2 GPU Instance (g4dn.xlarge)" as EC2_Instance {
+rectangle "Docker Engine" as Docker
+frame "Running Container" {
+rectangle "Container\n(YOLO11s Processor)" as Container1
+}
+Docker -down-> Container1 : hosts
+}
+note right of EC2_Instance
+Simulates 1 Jetson device
+Processes 4-6 cameras
+Uses IoT certificates for MQTT
+end note
+}
+
+package "Managed & Serverless Services" {
+' Define packages with aliases to control layout
+package "API & Identity" as Pkg_API {
+rectangle "Amazon Cognito" as cognito
+rectangle "API Gateway\n(REST & WebSocket)" as api_gateway
+}
+
+package "Logic & Messaging" as Pkg_Logic {
+  rectangle "AWS Lambda\n- Ingest\n- Read\n- Config\n- Analytics" as lambda
+  rectangle "AWS IoT Core\n(MQTT Broker)" as iot_core
+  rectangle "Amazon SNS" as sns
+  rectangle "Amazon SQS\n(DLQ)" as sqs
+}
+
+package "Databases & Observability" as Pkg_Data {
+  database "DynamoDB" as dynamodb
+  rectangle "DynamoDB Streams" as ddb_streams
+  database "Amazon Timestream" as timestream
+  rectangle "Amazon CloudWatch" as cloudwatch
+  database "Amazon S3\n- Website\n- ROI Configs" as s3
+}
+
+}
+
+' Enforce vertical layout for serverless packages
+Pkg_API -[hidden]down-> Pkg_Logic
+Pkg_Logic -[hidden]down-> Pkg_Data
+}
+
+' --- Relationships / Data Flows ---
+
+' User/Browser -> AWS
+Browser -right-> cognito : Auth [HTTPS]
+Browser --> s3 : Load Site [HTTPS]
+Browser --> api_gateway : "API Calls [HTTPS/WSS]"
+
+' Physical World -> AWS Compute
+Camera --> Container1 : "Video Stream [RTSP/HTTP]"
+
+' EC2 Container -> AWS Services
+Container1 --> iot_core : "Publish Status [MQTT]"
+Container1 --> s3 : "Read Config [AWS SDK]"
+Container1 --> cloudwatch : "Logs"
+
+' Internal AWS Service Integrations
+api_gateway --> lambda : Invokes
+lambda --> dynamodb : "Reads/Writes"
+lambda --> s3 : "Writes to"
+lambda --> timestream : "Writes to"
+lambda --> sqs : On Failure
+lambda --> sns : "Publishes to"
+dynamodb --> ddb_streams : Generates
+ddb_streams --> lambda : Triggers
+iot_core --> lambda : "IoT Rule triggers"
+cloudwatch --> sns : Alarm triggers
+
+@enduml
+
+
