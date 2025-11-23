@@ -11,6 +11,9 @@ from typing import Dict, List, Optional, Sequence, Tuple
 import cv2
 from ultralytics import YOLO
 
+# COCO dataset class IDs: 2=Car, 3=Motorcycle, 5=Bus, 7=Truck
+VEHICLE_CLASSES = [2, 3, 5, 7]
+
 
 Point = Tuple[float, float]
 
@@ -38,6 +41,7 @@ def point_in_polygon(point: Point, polygon: Sequence[Point]) -> bool:
 class ParkingSpaceROI:
     space_id: str
     polygon: List[Point]
+
 
 logger = logging.getLogger(__name__)
 
@@ -151,89 +155,121 @@ class YOLOProcessor:
                     break
         return occupancy
 
-    def detect_parking_spaces(self, image_path=None, total_spaces=30):
+    def detect_parking_spaces(self, image_path=None, total_spaces=30, burst_size=1):
         """
-        Run YOLO inference and simulate parking space detection
+        Run YOLO inference with temporal smoothing.
 
         Args:
             image_path: Path to image (optional, uses self.image_path if not provided)
             total_spaces: Total number of parking spaces in lot
+            burst_size: Number of frames to process for majority voting (default: 1)
 
         Returns:
             Dictionary with spaces, occupied count, and inference metadata
         """
-        if self.source_type == "video":
-            frame = self._read_video_frame()
-            inference_source = frame
-        else:
-            img_path = image_path or self.image_path
-            if not img_path:
-                raise ValueError("No image path provided")
-            inference_source = img_path
+        # Accumulators for majority voting
+        space_votes: Dict[str, int] = {}
+        space_conf_sum: Dict[str, float] = {}
+        last_detection_count = 0
 
-        try:
-            # Run YOLO inference
-            results = self.model(inference_source, conf=0.5, verbose=False)
-            boxes = results[0].boxes
-            num_detected_objects = int(len(boxes) if boxes is not None else 0)
+        # Only burst if we are processing video
+        actual_burst = burst_size if self.source_type == "video" else 1
 
-            detections: List[Dict[str, Optional[float]]] = []
-            if boxes is not None and num_detected_objects:
-                xyxy = boxes.xyxy.tolist()
-                confidences = (
-                    boxes.conf.tolist()
-                    if boxes.conf is not None
-                    else [None] * len(xyxy)
-                )
-                for coords, conf in zip(xyxy, confidences):
-                    x1, y1, x2, y2 = [float(c) for c in coords]
-                    center = ((x1 + x2) / 2.0, (y1 + y2) / 2.0)
-                    detections.append(
-                        {
-                            "bbox": (x1, y1, x2, y2),
-                            "center": center,
-                            "confidence": float(conf) if conf is not None else None,
-                        }
-                    )
-
-            logger.info(f"YOLO detected {num_detected_objects} objects")
-
-            if self._roi_spaces:
-                occupancy_map = self._map_detections_to_spaces(detections)
-                spaces = {}
-                for space_id, roi in self._roi_spaces.items():
-                    confidence = occupancy_map.get(space_id)
-                    spaces[space_id] = {
-                        "status": "occupied" if confidence is not None else "vacant",
-                        "confidence": round(confidence, 3) if confidence else 0.0,
-                    }
-
-                occupied_count = len(occupancy_map)
-                total_spaces = len(spaces)
-                vacant_count = total_spaces - occupied_count
+        for _ in range(actual_burst):
+            if self.source_type == "video":
+                inference_source = self._read_video_frame()
             else:
-                # Simulated fallback when ROIs are unavailable
-                vehicle_count = int(num_detected_objects * 0.7)
-                occupied_count = min(vehicle_count, total_spaces)
-                vacant_count = total_spaces - occupied_count
+                img_path = image_path or self.image_path
+                if not img_path:
+                    raise ValueError("No image path provided")
+                inference_source = img_path
 
-                spaces = {}
-                for i in range(1, total_spaces + 1):
-                    space_id = f"A-{i:02d}"
-                    is_occupied = i <= occupied_count
-                    spaces[space_id] = {
-                        "status": "occupied" if is_occupied else "vacant",
-                        "confidence": 0.92 + (i * 0.001) % 0.08,
-                    }
+            try:
+                # Run YOLO inference
+                results = self.model(
+                    inference_source, conf=0.5, verbose=False, classes=VEHICLE_CLASSES
+                )
+                boxes = results[0].boxes
+                num_detected_objects = int(len(boxes) if boxes is not None else 0)
+                last_detection_count = num_detected_objects
 
-            return {
-                "spaces": spaces,
-                "total_occupied": occupied_count,
-                "total_vacant": vacant_count,
-                "detections_count": num_detected_objects,
-                "vehicle_count": occupied_count,
-            }
+                detections: List[Dict[str, Optional[float]]] = []
+                if boxes is not None and num_detected_objects:
+                    xyxy = boxes.xyxy.tolist()
+                    confidences = (
+                        boxes.conf.tolist()
+                        if boxes.conf is not None
+                        else [None] * len(xyxy)
+                    )
+                    for coords, conf in zip(xyxy, confidences):
+                        x1, y1, x2, y2 = [float(c) for c in coords]
+                        center = ((x1 + x2) / 2.0, (y1 + y2) / 2.0)
+                        detections.append(
+                            {
+                                "bbox": (x1, y1, x2, y2),
+                                "center": center,
+                                "confidence": float(conf) if conf is not None else None,
+                            }
+                        )
 
-        except Exception as e:
-            logger.error(f"YOLO inference failed: {e}")
-            raise
+                # Accumulate votes if ROIs are defined
+                if self._roi_spaces:
+                    occupancy_map = self._map_detections_to_spaces(detections)
+                    for space_id, conf in occupancy_map.items():
+                        space_votes[space_id] = space_votes.get(space_id, 0) + 1
+                        space_conf_sum[space_id] = (
+                            space_conf_sum.get(space_id, 0.0) + conf
+                        )
+
+            except Exception as e:
+                logger.error(f"YOLO inference failed: {e}")
+                raise
+
+        logger.info(
+            f"YOLO burst processed {actual_burst} frames. Last count: {last_detection_count}"
+        )
+
+        if self._roi_spaces:
+            spaces = {}
+            occupied_count = 0
+
+            for space_id in self._roi_spaces:
+                votes = space_votes.get(space_id, 0)
+                # Majority vote: > 50% of frames
+                is_occupied = votes > (actual_burst / 2)
+
+                avg_conf = 0.0
+                if is_occupied and votes > 0:
+                    avg_conf = space_conf_sum.get(space_id, 0.0) / votes
+
+                spaces[space_id] = {
+                    "status": "occupied" if is_occupied else "vacant",
+                    "confidence": round(avg_conf, 3),
+                }
+                if is_occupied:
+                    occupied_count += 1
+
+            total_spaces = len(spaces)
+            vacant_count = total_spaces - occupied_count
+        else:
+            # Simulated fallback when ROIs are unavailable
+            vehicle_count = int(last_detection_count * 0.7)
+            occupied_count = min(vehicle_count, total_spaces)
+            vacant_count = total_spaces - occupied_count
+
+            spaces = {}
+            for i in range(1, total_spaces + 1):
+                space_id = f"A-{i:02d}"
+                is_occupied = i <= occupied_count
+                spaces[space_id] = {
+                    "status": "occupied" if is_occupied else "vacant",
+                    "confidence": 0.92 + (i * 0.001) % 0.08,
+                }
+
+        return {
+            "spaces": spaces,
+            "total_occupied": occupied_count,
+            "total_vacant": vacant_count,
+            "detections_count": last_detection_count,
+            "vehicle_count": occupied_count,
+        }

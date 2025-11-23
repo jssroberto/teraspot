@@ -5,19 +5,18 @@ Publishes parking occupancy data from edge device to AWS IoT Core
 Supports both mocked data and real YOLO inference
 """
 
-from awsiot import mqtt_connection_builder
 import argparse
 import logging
 import sys
 import time
 
+from awsiot import mqtt_connection_builder
 from config_utils import load_config_from_env, resolve_roi_spaces
 from publisher_utils import (
     SpaceStateTracker,
     build_change_payload,
     generate_mocked_spaces,
     publish_change_events,
-    wait_interval,
 )
 
 # Import YOLO processor (if using real inference)
@@ -34,7 +33,6 @@ logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
- 
 
 
 def on_connection_success(connection, callback_data):
@@ -51,6 +49,8 @@ def on_connection_failure(connection, callback_data):
 def on_connection_closed(connection, callback_data):
     """Callback when connection closes"""
     logger.info("Connection closed")
+
+
 def main():
     """Main function"""
     parser = argparse.ArgumentParser(description="TeraSpot Edge Publisher")
@@ -202,9 +202,7 @@ def main():
         iteration = 0
         while args.iterations < 0 or iteration < args.iterations:
             if iteration > 0:
-                logger.info(
-                    f"\nWaiting {args.interval} seconds before next message..."
-                )
+                logger.info(f"\nWaiting {args.interval} seconds before next message...")
                 time.sleep(args.interval)
 
             logger.info(f"\nMessage {iteration + 1}")
@@ -212,7 +210,9 @@ def main():
             # Generate snapshot
             data_source = "yolo11n" if yolo else "mocked"
             if yolo:
-                snapshot = yolo.detect_parking_spaces(total_spaces=args.spaces)
+                snapshot = yolo.detect_parking_spaces(
+                    total_spaces=args.spaces, burst_size=5
+                )
             else:
                 snapshot = generate_mocked_spaces(args.spaces)
 

@@ -51,3 +51,5 @@ Thumbs.db
 # Large files
 *.iso
 *.tar.gz
+
+docs/pdfs
