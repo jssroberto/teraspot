@@ -1,29 +1,33 @@
 # Config Saver Lambda
 
-This Lambda function manages the configuration files for the TeraSpot system, specifically the Region of Interest (ROI) configurations used by the Fog nodes (Edge devices).
+This Lambda function manages the configuration files for the TeraSpot system. It serves as the source of truth for Edge (Fog) nodes, storing configurations as JSON files in an S3 bucket.
 
-It provides a CRUD-like API to save, retrieve, and list configurations, storing them as JSON files in an S3 bucket.
+## Features
+
+- **CRUD Operations**: Save, Get, and List configurations.
+- **S3 Storage**: Persists data as JSON files in a designated S3 bucket.
+- **Validation**: Enforces schema validation for different configuration types.
 
 ## Architecture
 
-- **Trigger:** Invoked directly (e.g., via API Gateway or AWS SDK).
-- **Storage:** Amazon S3.
-- **Format:** JSON files stored at `configs/{config_id}.json`.
+- **Trigger**: API Gateway or AWS SDK invocation.
+- **Storage**: Amazon S3.
+- **Key Format**: `configs/{config_id}.json`
 
 ## Environment Variables
 
-| Variable             | Description                                    | Default               |
-| :------------------- | :--------------------------------------------- | :-------------------- |
-| `AWS_REGION`         | AWS Region where the S3 bucket resides.        | `us-east-1`           |
-| `CONFIG_BUCKET_NAME` | Name of the S3 bucket to store configurations. | `teraspot-config-dev` |
+| Variable             | Description                   | Default               |
+| :------------------- | :---------------------------- | :-------------------- |
+| `AWS_REGION`         | AWS Region for the S3 bucket. | `us-east-1`           |
+| `CONFIG_BUCKET_NAME` | Name of the S3 bucket.        | `teraspot-config-dev` |
 
-## Request Payloads
+## API Reference
 
-The Lambda expects a JSON payload with an `action` field.
+The Lambda accepts a JSON payload with an `action` field.
 
 ### 1. SAVE Configuration
 
-Saves a new configuration or updates an existing one.
+Saves or updates a configuration.
 
 **Payload:**
 
@@ -31,12 +35,11 @@ Saves a new configuration or updates an existing one.
 {
   "action": "SAVE",
   "config": {
-    "config_id": "roi-facility-zone",
+    "config_id": "roi-facility-01-zone-a",
     "config_type": "zone",
     "value": {
       "name": "Zone A",
-      "total_spaces": 50,
-      "spaces": [ ... ] // List of polygons
+      "total_spaces": 50
     },
     "updated_by": "admin",
     "active": true
@@ -44,9 +47,16 @@ Saves a new configuration or updates an existing one.
 }
 ```
 
-**Naming Convention:**
-For Fog node ROI configurations, use the following `config_id` convention to ensure the Edge device can find its config:
-`roi-{facility_id}-{zone_id}`
+**Validation Rules:**
+
+The `config_type` must be one of: `threshold`, `zone`, `device`, `alert_rule`.
+
+| Config Type  | Required Fields in `value`               |
+| :----------- | :--------------------------------------- |
+| `zone`       | `name`, `total_spaces`                   |
+| `device`     | `ip`, `port`                             |
+| `threshold`  | Must be a dictionary with numeric values |
+| `alert_rule` | (Generic validation)                     |
 
 **Response:**
 
@@ -55,22 +65,22 @@ For Fog node ROI configurations, use the following `config_id` convention to ens
   "statusCode": 200,
   "body": {
     "success": true,
-    "message": "Config roi-facility-zone saved successfully",
-    "config_id": "roi-facility-zone"
+    "message": "Config roi-facility-01-zone-a saved successfully",
+    "config_id": "roi-facility-01-zone-a"
   }
 }
 ```
 
 ### 2. GET Configuration
 
-Retrieves a specific configuration by ID.
+Retrieves a configuration by ID.
 
 **Payload:**
 
 ```json
 {
   "action": "GET",
-  "config_id": "roi-facility-zone"
+  "config_id": "roi-facility-01-zone-a"
 }
 ```
 
@@ -81,11 +91,12 @@ Retrieves a specific configuration by ID.
   "statusCode": 200,
   "body": {
     "config": {
-      "config_id": "roi-facility-zone",
+      "config_id": "roi-facility-01-zone-a",
       "config_type": "zone",
       "value": { ... },
-      "timestamp": "2023-10-27T10:00:00Z",
-      "version": 1
+      "timestamp": "2025-11-23T10:00:00Z",
+      "version": 1,
+      ...
     }
   }
 }
@@ -117,24 +128,22 @@ Lists all configurations of a specific type.
 }
 ```
 
-## S3 Storage Structure
+## Local Development
 
-Configurations are stored as individual JSON files in the S3 bucket defined by `CONFIG_BUCKET_NAME`.
-
-**Key Format:** `configs/{config_id}.json`
-
-**Example:** `s3://teraspot-config-dev/configs/roi-downtown-level1.json`
-
-## Development
-
-### Requirements
+### Prerequisites
 
 - Python 3.13+
-- `boto3`
+- `pip`
+
+### Installation
+
+```bash
+pip install -r requirements.txt
+```
 
 ### Running Tests
 
-Tests use `moto` to mock S3 interactions.
+Tests use `moto` to mock S3 interactions, so no real AWS credentials are required for testing.
 
 ```bash
 pip install -r requirements-dev.txt
