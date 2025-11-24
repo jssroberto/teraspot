@@ -7,13 +7,15 @@ from datetime import datetime
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-# AWS Clients
 sqs = boto3.client('sqs', region_name='us-east-1')
 
-# Environment Variables
 SQS_ALERTS_URL = os.getenv('SQS_ALERTS_URL')
 SQS_LOW_CONFIDENCE_URL = os.getenv('SQS_LOW_CONFIDENCE_URL')
 DLQ_URL = os.getenv('DLQ_URL')
+HISTORY_TABLE_NAME = os.getenv('HISTORY_TABLE', 'parking-history')
+
+dynamodb = boto3.resource('dynamodb', region_name='us-east-1')
+history_table = dynamodb.Table(HISTORY_TABLE_NAME)
 
 
 def send_to_sqs(queue_url, message):
@@ -52,6 +54,37 @@ def save_to_dlq(message, error_reason):
         logger.critical(f"💥 DLQ FAILED: {str(e)}")
 
 
+def save_history(record):
+    """Guarda el cambio de estado en la tabla de histórico"""
+    try:
+        new_image = record['dynamodb'].get('NewImage', {})
+        
+        if not new_image:
+            logger.warning("⚠️ No NewImage found in record, skipping history save")
+            return
+
+        item = {
+            'space_id': new_image.get('space_id', {}).get('S'),
+            'timestamp': new_image.get('timestamp', {}).get('S'),
+            'status': new_image.get('status', {}).get('S'),
+            'confidence': new_image.get('confidence', {}).get('N'),
+            'device_id': new_image.get('device_id', {}).get('S'),
+            'archived_at': datetime.utcnow().isoformat()
+        }
+        
+        item = {k: v for k, v in item.items() if v is not None}
+        
+        if 'confidence' in item:
+            from decimal import Decimal
+            item['confidence'] = Decimal(item['confidence'])
+
+        history_table.put_item(Item=item)
+        logger.info(f"📜 Archived to history: {item.get('space_id')} at {item.get('timestamp')}")
+
+    except Exception as e:
+        logger.error(f"❌ Failed to save history: {str(e)}")
+
+
 def lambda_handler(event, context):
     """Analytics notifier: procesa alertas desde DynamoDB Streams"""
     try:
@@ -69,12 +102,12 @@ def lambda_handler(event, context):
                 logger.info(f"--- IMAGEN NUEVA (NewImage) ---")
                 logger.info(json.dumps(new_image))
                 
-                # Extraer datos
+                save_history(record)
+                
                 space_id = new_image.get('space_id', {}).get('S', 'UNKNOWN')
                 confidence = float(new_image.get('confidence', {}).get('N', 1.0))
                 status = new_image.get('status', {}).get('S', 'UNKNOWN')
                 
-                # REGLA 1: Baja confianza
                 if confidence < 0.8:
                     alert = {
                         'type': 'LOW_CONFIDENCE',
@@ -86,7 +119,6 @@ def lambda_handler(event, context):
                     send_to_sqs(SQS_LOW_CONFIDENCE_URL, alert)
                     logger.info(f"🚨 LOW_CONFIDENCE alert: {space_id}")
                 
-                # REGLA 2: Ocupación alta (contar occupied en ESTE batch)
                 occupied_count = sum(1 for r in event.get('Records', []) 
                                     if r['dynamodb'].get('NewImage', {}).get('status', {}).get('S') == 'occupied')
                 total_records = len(event.get('Records', []))

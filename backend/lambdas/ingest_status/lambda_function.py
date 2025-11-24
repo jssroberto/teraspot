@@ -12,7 +12,7 @@ import boto3
 
 from .parser import parse_events
 from .qa import enrich_event, validate_data
-from .persistence import current_occupancy, save_current, save_history
+from .persistence import current_occupancy, save_current
 from .alerts import generate_alerts, dispatch_alerts
 
 logger = logging.getLogger()
@@ -20,7 +20,6 @@ logger.setLevel(logging.INFO)
 
 REGION = os.getenv("REGION", "us-east-1")
 DYNAMODB_TABLE = os.getenv("DYNAMODB_TABLE", "parking-spaces-dev")
-HISTORY_TABLE = os.getenv("HISTORY_TABLE", "parking-history")
 SQS_ALERTS_URL = os.getenv("SQS_ALERTS_URL")
 SQS_LOW_CONFIDENCE_URL = os.getenv("SQS_LOW_CONFIDENCE_URL")
 
@@ -28,7 +27,6 @@ dynamodb = boto3.resource("dynamodb", region_name=REGION)
 sqs = boto3.client("sqs", region_name=REGION)
 
 current_table = dynamodb.Table(DYNAMODB_TABLE)
-history_table = dynamodb.Table(HISTORY_TABLE)
 
 
 def _extract_raw_payload(event: Any) -> Any:
@@ -87,23 +85,7 @@ def lambda_handler(event, context):
         logger.info("Saving current data")
         save_current(items, current_table)
 
-        logger.info("Saving historical data")
-        try:
-            save_history(items, history_table)
-        except Exception as exc:
-            if "ConditionalCheckFailedException" in str(exc):
-                logger.warning("Duplicate event detected. Skipping alerts and returning success.")
-                return {
-                    "statusCode": 200,
-                    "body": json.dumps(
-                        {
-                            "success": True,
-                            "message": "Duplicate event ignored",
-                            "items": len(items),
-                        }
-                    ),
-                }
-            raise exc
+        # History saving removed - moved to analytics_notifier (Stream architecture)
 
         logger.info("Computing occupancy")
         occupancy_stats = current_occupancy(current_table)
