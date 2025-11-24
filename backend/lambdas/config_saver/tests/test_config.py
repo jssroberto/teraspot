@@ -1,24 +1,24 @@
-import sys
 import os
+import sys
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 import json
-import pytest
+from unittest.mock import patch
+
 import boto3
+import pytest
+from lambda_function import lambda_handler, validate_config
 from moto import mock_aws
-from lambda_function import (
-    validate_config,
-    lambda_handler
-)
 
+# ============ TESTS WITHOUT MOCK (Validation) ============
 
-# ============ TESTS SIN MOCK (Validación) ============
 
 def test_validate_config_valid_zone():
-    """Test validación exitosa de zona"""
+    """Test successful zone validation"""
     config = {
-        'config_id': 'zone-a',
-        'config_type': 'zone',
-        'value': {'name': 'Zone A', 'total_spaces': 50}
+        "config_id": "zone-a",
+        "config_type": "zone",
+        "value": {"name": "Zone A", "total_spaces": 50},
     }
     is_valid, error = validate_config(config)
     assert is_valid is True
@@ -26,105 +26,148 @@ def test_validate_config_valid_zone():
 
 
 def test_validate_config_missing_field():
-    """Test validación con campo faltante"""
-    config = {
-        'config_id': 'zone-a',
-        'config_type': 'zone'
-    }
+    """Test validation with missing field"""
+    config = {"config_id": "zone-a", "config_type": "zone"}
     is_valid, error = validate_config(config)
     assert is_valid is False
-    assert 'Missing required field' in error
+    assert "Missing required field" in error
 
 
 def test_validate_config_invalid_type():
-    """Test tipo de configuración inválido"""
-    config = {
-        'config_id': 'test',
-        'config_type': 'invalid_type',
-        'value': {}
-    }
+    """Test invalid configuration type"""
+    config = {"config_id": "test", "config_type": "invalid_type", "value": {}}
     is_valid, error = validate_config(config)
     assert is_valid is False
 
 
 def test_validate_config_zone_missing_fields():
-    """Test zona sin campos requeridos"""
-    config = {
-        'config_id': 'zone-a',
-        'config_type': 'zone',
-        'value': {'name': 'Zone A'}
-    }
+    """Test zone without required fields"""
+    config = {"config_id": "zone-a", "config_type": "zone", "value": {"name": "Zone A"}}
     is_valid, error = validate_config(config)
     assert is_valid is False
 
 
 def test_validate_config_device():
-    """Test validación de dispositivo"""
+    """Test device validation"""
     config = {
-        'config_id': 'device-01',
-        'config_type': 'device',
-        'value': {'ip': '192.168.1.100', 'port': 5000}
+        "config_id": "device-01",
+        "config_type": "device",
+        "value": {"ip": "192.168.1.100", "port": 5000},
     }
     is_valid, error = validate_config(config)
     assert is_valid is True
 
 
-# ============ TESTS CON MOCK (Handler) ============
+# ============ TESTS WITH MOCK (Handler) ============
 
-@pytest.mark.skipif(os.getenv('CI') == 'true', reason="Skipped in CI (moto v5 mock_aws issue)")
-@mock_aws
-def test_lambda_handler_save():
-    """Test handler SAVE con DynamoDB simulado"""
-    
-    dynamodb = boto3.resource('dynamodb', region_name='us-east-1')
-    dynamodb.create_table(
-        TableName='teraspot-config-dev',
-        KeySchema=[{'AttributeName': 'config_id', 'KeyType': 'HASH'}],
-        AttributeDefinitions=[{'AttributeName': 'config_id', 'AttributeType': 'S'}],
-        BillingMode='PAY_PER_REQUEST'
-    )
-    
+
+@pytest.fixture
+def s3_setup():
+    with mock_aws():
+        s3 = boto3.client("s3", region_name="us-east-1")
+        s3.create_bucket(Bucket="teraspot-config-dev")
+        yield s3
+
+
+def test_lambda_handler_save(s3_setup):
+    """Test SAVE handler with simulated S3"""
+
     event = {
-        'action': 'SAVE',
-        'config': {
-            'config_id': 'zone-test',
-            'config_type': 'zone',
-            'value': {
-                'name': 'Test Zone',
-                'total_spaces': 25
-            }
-        }
+        "action": "SAVE",
+        "config": {
+            "config_id": "zone-test",
+            "config_type": "zone",
+            "value": {"name": "Test Zone", "total_spaces": 25},
+        },
     }
-    
-    result = lambda_handler(event, None)
-    
-    assert result['statusCode'] == 200
 
+    with patch("lambda_function.s3_client", s3_setup):
+        result = lambda_handler(event, None)
 
+    assert result["statusCode"] == 200
 
-@mock_aws
-def test_lambda_handler_list():
-    """Test handler LIST"""
-    dynamodb = boto3.resource('dynamodb', region_name='us-east-1')
-    dynamodb.create_table(
-        TableName='teraspot-config-dev',
-        KeySchema=[{'AttributeName': 'config_id', 'KeyType': 'HASH'}],
-        AttributeDefinitions=[{'AttributeName': 'config_id', 'AttributeType': 'S'}],
-        BillingMode='PAY_PER_REQUEST'
+    # Verify that it was saved in S3
+    response = s3_setup.get_object(
+        Bucket="teraspot-config-dev", Key="configs/zone-test.json"
     )
-    
-    event = {
-        'action': 'LIST',
-        'config_type': 'zone'
+    content = json.loads(response["Body"].read().decode("utf-8"))
+    assert content["config_id"] == "zone-test"
+    assert content["value"]["name"] == "Test Zone"
+
+
+def test_lambda_handler_list(s3_setup):
+    """Test LIST handler"""
+    # Create some test files
+    config1 = {
+        "config_id": "zone-1",
+        "config_type": "zone",
+        "value": {"name": "Zone 1", "total_spaces": 10},
     }
-    result = lambda_handler(event, None)
-    assert result['statusCode'] == 200
-    body = json.loads(result['body'])
-    assert 'items' in body
+    config2 = {
+        "config_id": "zone-2",
+        "config_type": "zone",
+        "value": {"name": "Zone 2", "total_spaces": 20},
+    }
+    config3 = {
+        "config_id": "device-1",
+        "config_type": "device",
+        "value": {"ip": "1.1.1.1", "port": 80},
+    }
+
+    s3_setup.put_object(
+        Bucket="teraspot-config-dev",
+        Key="configs/zone-1.json",
+        Body=json.dumps(config1),
+    )
+    s3_setup.put_object(
+        Bucket="teraspot-config-dev",
+        Key="configs/zone-2.json",
+        Body=json.dumps(config2),
+    )
+    s3_setup.put_object(
+        Bucket="teraspot-config-dev",
+        Key="configs/device-1.json",
+        Body=json.dumps(config3),
+    )
+
+    event = {"action": "LIST", "config_type": "zone"}
+    with patch("lambda_function.s3_client", s3_setup):
+        result = lambda_handler(event, None)
+
+    assert result["statusCode"] == 200
+    body = json.loads(result["body"])
+    assert body["count"] == 2
+    assert len(body["items"]) == 2
+    ids = [item["config_id"] for item in body["items"]]
+    assert "zone-1" in ids
+    assert "zone-2" in ids
+    assert "device-1" not in ids
+
+
+def test_lambda_handler_get(s3_setup):
+    """Test GET handler"""
+    config = {
+        "config_id": "zone-get",
+        "config_type": "zone",
+        "value": {"name": "Zone Get", "total_spaces": 5},
+    }
+    s3_setup.put_object(
+        Bucket="teraspot-config-dev",
+        Key="configs/zone-get.json",
+        Body=json.dumps(config),
+    )
+
+    event = {"action": "GET", "config_id": "zone-get"}
+    with patch("lambda_function.s3_client", s3_setup):
+        result = lambda_handler(event, None)
+
+    assert result["statusCode"] == 200
+    body = json.loads(result["body"])
+    assert body["config"]["config_id"] == "zone-get"
 
 
 def test_lambda_handler_invalid_action():
-    """Test action inválida"""
-    event = {'action': 'INVALID'}
+    """Test invalid action"""
+    event = {"action": "INVALID"}
     result = lambda_handler(event, None)
-    assert result['statusCode'] == 400
+    assert result["statusCode"] == 400
