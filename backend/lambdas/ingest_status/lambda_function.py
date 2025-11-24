@@ -88,7 +88,22 @@ def lambda_handler(event, context):
         save_current(items, current_table)
 
         logger.info("Saving historical data")
-        save_history(items, history_table)
+        try:
+            save_history(items, history_table)
+        except Exception as exc:
+            if "ConditionalCheckFailedException" in str(exc):
+                logger.warning("Duplicate event detected. Skipping alerts and returning success.")
+                return {
+                    "statusCode": 200,
+                    "body": json.dumps(
+                        {
+                            "success": True,
+                            "message": "Duplicate event ignored",
+                            "items": len(items),
+                        }
+                    ),
+                }
+            raise exc
 
         logger.info("Computing occupancy")
         occupancy_stats = current_occupancy(current_table)

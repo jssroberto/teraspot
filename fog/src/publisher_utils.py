@@ -4,6 +4,7 @@ import json
 import logging
 import random
 import time
+import uuid
 from datetime import UTC, datetime
 
 from awscrt import mqtt
@@ -86,6 +87,7 @@ def build_change_payload(changes, metadata):
     for change in changes:
         enriched.append(
             {
+                "event_id": str(uuid.uuid4()),
                 "space_id": change["space_id"],
                 "status": change["status"],
                 "confidence": change.get("confidence"),

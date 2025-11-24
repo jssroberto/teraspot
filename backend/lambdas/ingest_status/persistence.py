@@ -15,7 +15,7 @@ def save_current(items: Iterable[Dict[str, Any]], table) -> None:
         try:
             table.put_item(Item=item)
             logger.info("Current state saved: %s = %s", item["space_id"], item["status"])
-        except Exception as exc:  # pragma: no cover - log and continue
+        except Exception as exc: 
             logger.error("Current save error: %s", exc)
 
 
@@ -29,11 +29,22 @@ def save_history(items: Iterable[Dict[str, Any]], history_table) -> None:
             "device_id": item.get("device_id", "unknown"),
             "facility_id": item.get("facility_id", "unknown"),
             "zone_id": item.get("zone_id", "unknown"),
+            "event_id": item.get("event_id"), 
         }
         try:
-            history_table.put_item(Item=history_item)
-            logger.info("History entry saved: %s at %s", history_item["space_id"], history_item["timestamp"])
-        except Exception as exc:  # pragma: no cover
+            history_table.put_item(
+                Item=history_item,
+                ConditionExpression="attribute_not_exists(#ts)",
+                ExpressionAttributeNames={"#ts": "timestamp"},
+            )
+            logger.info(
+                "History entry saved: %s at %s",
+                history_item["space_id"],
+                history_item["timestamp"],
+            )
+        except Exception as exc:
+            if "ConditionalCheckFailedException" in str(exc):
+                raise exc
             logger.error("History save error: %s", exc)
 
 
