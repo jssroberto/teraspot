@@ -21,3 +21,4 @@ services:
       --frame-skip 5
       --iterations -1
       --interval 5
+      --roi-config config/roi_sample.json

@@ -128,7 +128,6 @@ def test_lambda_handler_empty():
     event = {'spaces': {}}
     
     result = lambda_handler(event, None)
-    # Debe ser 400 (sin items válidos)
     assert result['statusCode'] in [400, 200]
 
 
