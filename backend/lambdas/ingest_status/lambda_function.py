@@ -12,8 +12,7 @@ import boto3
 
 from .parser import parse_events
 from .qa import enrich_event, validate_data
-from .persistence import current_occupancy, save_current
-from .alerts import generate_alerts, dispatch_alerts
+from .persistence import save_current
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -85,21 +84,11 @@ def lambda_handler(event, context):
         logger.info("Saving current data")
         save_current(items, current_table)
 
-        # History saving removed - moved to analytics_notifier (Stream architecture)
-
-        logger.info("Computing occupancy")
-        occupancy_stats = current_occupancy(current_table)
-
-        logger.info("Generating alerts")
-        alerts = generate_alerts(items, occupancy_stats)
-
-        logger.info("Sending alerts to SQS")
-        dispatch_alerts(alerts, sqs, SQS_LOW_CONFIDENCE_URL, SQS_ALERTS_URL)
+        
 
         logger.info(
-            "Complete: %d items, %d alerts, %d rejected",
+            "Complete: %d items processed, %d rejected",
             len(items),
-            len(alerts),
             rejected,
         )
 
@@ -109,12 +98,11 @@ def lambda_handler(event, context):
                 {
                     "success": True,
                     "items": len(items),
-                    "alerts": len(alerts),
                     "rejected": rejected,
                 }
             ),
         }
 
-    except Exception as exc:  # pragma: no cover - defensive
+    except Exception as exc: 
         logger.error("Unhandled error: %s", exc, exc_info=True)
         return {"statusCode": 500, "body": json.dumps({"error": str(exc)})}
