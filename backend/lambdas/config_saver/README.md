@@ -41,6 +41,26 @@ Saves or updates a configuration.
       "name": "Zone A",
       "total_spaces": 50
     },
+    "spaces": [
+      {
+        "space_id": "A-01",
+        "polygon": [
+          [100, 100],
+          [200, 100],
+          [200, 200],
+          [100, 200]
+        ]
+      },
+      {
+        "space_id": "A-02",
+        "polygon": [
+          [210, 100],
+          [310, 100],
+          [310, 200],
+          [210, 200]
+        ]
+      }
+    ],
     "updated_by": "admin",
     "active": true
   }
@@ -57,6 +77,8 @@ The `config_type` must be one of: `threshold`, `zone`, `device`, `alert_rule`.
 | `device`     | `ip`, `port`                             |
 | `threshold`  | Must be a dictionary with numeric values |
 | `alert_rule` | (Generic validation)                     |
+
+> **Note:** For `zone` configurations used by Fog nodes, you must include a top-level `spaces` list containing objects with `space_id` and `polygon` (list of `[x, y]` coordinates). This field is passed through to the saved JSON file.
 
 **Response:**
 
