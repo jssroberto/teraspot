@@ -21,57 +21,79 @@ def validate_config(config: Dict[str, Any]) -> Tuple[bool, str]:
     Validates that the configuration meets the required schema.
     """
     # Required fields
-    required_fields = ["config_id", "config_type", "value"]
+    required_fields = ["config_type", "value"]
     for field in required_fields:
         if field not in config:
             return False, f"Missing required field: {field}"
 
     # Valid types
     valid_types = ["threshold", "zone", "device", "alert_rule"]
-    if config.get("config_type") not in valid_types:
+    config_type = config.get("config_type")
+    if config_type not in valid_types:
         return False, f"Invalid config_type. Must be one of: {valid_types}"
 
     # Validate by type
-    config_type = config.get("config_type")
-
     if config_type == "threshold":
-        # Thresholds must have numbers
+        # Thresholds must have numbers and threshold_id
+        if "threshold_id" not in config:
+            return False, "threshold must have 'threshold_id'"
         value = config.get("value", {})
         if not isinstance(value, dict):
             return False, "threshold value must be a dict with numeric values"
 
     elif config_type == "zone":
-        # Zones must have name and total spaces
+        # Zones must have facility_id, zone_id, name, and total_spaces
+        if "facility_id" not in config or "zone_id" not in config:
+            return False, "zone must have 'facility_id' and 'zone_id'"
         value = config.get("value", {})
         if "name" not in value or "total_spaces" not in value:
-            return False, "zone must have 'name' and 'total_spaces'"
+            return False, "zone value must have 'name' and 'total_spaces'"
 
     elif config_type == "device":
-        # Devices must have ip and port
+        # Devices must have device_id, ip, and port
+        if "device_id" not in config:
+            return False, "device must have 'device_id'"
         value = config.get("value", {})
         if "ip" not in value or "port" not in value:
-            return False, "device must have 'ip' and 'port'"
+            return False, "device value must have 'ip' and 'port'"
+
+    elif config_type == "alert_rule":
+        if "rule_id" not in config:
+            return False, "alert_rule must have 'rule_id'"
 
     return True, ""
 
 
-def save_config(config: Dict[str, Any]) -> Tuple[bool, str]:
+def save_config(config: Dict[str, Any]) -> Tuple[bool, str, str]:
     """
     Saves configuration to S3.
+    Returns: (success, message, config_id)
     """
     try:
         # Validate
         is_valid, error_msg = validate_config(config)
         if not is_valid:
             logger.warning(f"Config validation failed: {error_msg}")
-            return False, error_msg
+            return False, error_msg, ""
 
-        config_id = config.get("config_id")
+        config_type = config.get("config_type")
+        config_id = ""
+
+        # Generate config_id based on type
+        if config_type == "zone":
+            config_id = f"roi-{config['facility_id']}-{config['zone_id']}"
+        elif config_type == "device":
+            config_id = f"device-{config['device_id']}"
+        elif config_type == "threshold":
+            config_id = f"threshold-{config['threshold_id']}"
+        elif config_type == "alert_rule":
+            config_id = f"alert-{config['rule_id']}"
 
         # Build item with metadata
         item = config.copy()
         item.update(
             {
+                "config_id": config_id,
                 "timestamp": datetime.utcnow().isoformat() + "Z",
                 "version": config.get("version", 1),
                 "updated_by": config.get("updated_by", "system"),
@@ -90,11 +112,11 @@ def save_config(config: Dict[str, Any]) -> Tuple[bool, str]:
         )
         logger.info(f"Saved config: {config_id} to s3://{CONFIG_BUCKET_NAME}/{key}")
 
-        return True, f"Config {config_id} saved successfully"
+        return True, f"Config {config_id} saved successfully", config_id
 
     except Exception as e:
         logger.error(f"Failed to save config: {str(e)}")
-        return False, str(e)
+        return False, str(e), ""
 
 
 def get_config(config_id: str) -> Dict[str, Any]:
@@ -175,14 +197,14 @@ def lambda_handler(event, context):
         # SAVE: Save new configuration
         if action == "SAVE":
             config = payload.get("config", {})
-            success, message = save_config(config)
+            success, message, config_id = save_config(config)
 
             return {
                 "statusCode": 200 if success else 400,
                 "body": json.dumps(
                     {
                         "message": message,
-                        "config_id": config.get("config_id"),
+                        "config_id": config_id,
                         "success": success,
                     }
                 ),
