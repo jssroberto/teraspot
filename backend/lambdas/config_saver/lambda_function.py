@@ -1,8 +1,8 @@
 import json
 import logging
 import os
-from datetime import datetime
-from typing import Any, Dict, Tuple
+from datetime import datetime, timezone
+from typing import Any
 
 import boto3
 
@@ -16,7 +16,40 @@ CONFIG_BUCKET_NAME = os.getenv("CONFIG_BUCKET_NAME", "teraspot-config-dev")
 s3_client = boto3.client("s3", region_name=AWS_REGION)
 
 
-def validate_config(config: Dict[str, Any]) -> Tuple[bool, str]:
+def _validate_threshold(config: dict[str, Any]) -> tuple[bool, str]:
+    if "threshold_id" not in config:
+        return False, "threshold must have 'threshold_id'"
+    value = config.get("value", {})
+    if not isinstance(value, dict):
+        return False, "threshold value must be a dict with numeric values"
+    return True, ""
+
+
+def _validate_zone(config: dict[str, Any]) -> tuple[bool, str]:
+    if "facility_id" not in config or "zone_id" not in config:
+        return False, "zone must have 'facility_id' and 'zone_id'"
+    value = config.get("value", {})
+    if "name" not in value or "total_spaces" not in value:
+        return False, "zone value must have 'name' and 'total_spaces'"
+    return True, ""
+
+
+def _validate_device(config: dict[str, Any]) -> tuple[bool, str]:
+    if "device_id" not in config:
+        return False, "device must have 'device_id'"
+    value = config.get("value", {})
+    if "ip" not in value or "port" not in value:
+        return False, "device value must have 'ip' and 'port'"
+    return True, ""
+
+
+def _validate_alert_rule(config: dict[str, Any]) -> tuple[bool, str]:
+    if "rule_id" not in config:
+        return False, "alert_rule must have 'rule_id'"
+    return True, ""
+
+
+def validate_config(config: dict[str, Any]) -> tuple[bool, str]:
     """
     Validates that the configuration meets the required schema.
     """
@@ -34,37 +67,60 @@ def validate_config(config: Dict[str, Any]) -> Tuple[bool, str]:
 
     # Validate by type
     if config_type == "threshold":
-        # Thresholds must have numbers and threshold_id
-        if "threshold_id" not in config:
-            return False, "threshold must have 'threshold_id'"
-        value = config.get("value", {})
-        if not isinstance(value, dict):
-            return False, "threshold value must be a dict with numeric values"
-
+        return _validate_threshold(config)
     elif config_type == "zone":
-        # Zones must have facility_id, zone_id, name, and total_spaces
-        if "facility_id" not in config or "zone_id" not in config:
-            return False, "zone must have 'facility_id' and 'zone_id'"
-        value = config.get("value", {})
-        if "name" not in value or "total_spaces" not in value:
-            return False, "zone value must have 'name' and 'total_spaces'"
-
+        return _validate_zone(config)
     elif config_type == "device":
-        # Devices must have device_id, ip, and port
-        if "device_id" not in config:
-            return False, "device must have 'device_id'"
-        value = config.get("value", {})
-        if "ip" not in value or "port" not in value:
-            return False, "device value must have 'ip' and 'port'"
-
+        return _validate_device(config)
     elif config_type == "alert_rule":
-        if "rule_id" not in config:
-            return False, "alert_rule must have 'rule_id'"
+        return _validate_alert_rule(config)
 
     return True, ""
 
 
-def save_config(config: Dict[str, Any]) -> Tuple[bool, str, str]:
+def _generate_config_id(config: dict[str, Any]) -> str:
+    """Generates a unique config ID based on the configuration type."""
+    config_type = config.get("config_type")
+
+    if config_type == "zone":
+        return f"roi-{config['facility_id']}-{config['zone_id']}"
+    elif config_type == "device":
+        return f"device-{config['device_id']}"
+    elif config_type == "threshold":
+        return f"threshold-{config['threshold_id']}"
+    elif config_type == "alert_rule":
+        return f"alert-{config['rule_id']}"
+
+    return ""
+
+
+def _prepare_config_item(config: dict[str, Any], config_id: str) -> dict[str, Any]:
+    """Prepares the configuration item with metadata for storage."""
+    item = config.copy()
+    item.update(
+        {
+            "config_id": config_id,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "version": config.get("version", 1),
+            "updated_by": config.get("updated_by", "system"),
+            "active": config.get("active", True),
+        }
+    )
+    return item
+
+
+def _parse_payload(event: Any) -> dict[str, Any]:
+    """Parses the Lambda event to extract the payload."""
+    if "body" in event:
+        return (
+            json.loads(event["body"])
+            if isinstance(event["body"], str)
+            else event["body"]
+        )
+    return event
+
+
+def save_config(config: dict[str, Any]) -> tuple[bool, str, str]:
     """
     Saves configuration to S3.
     Returns: (success, message, config_id)
@@ -76,30 +132,11 @@ def save_config(config: Dict[str, Any]) -> Tuple[bool, str, str]:
             logger.warning(f"Config validation failed: {error_msg}")
             return False, error_msg, ""
 
-        config_type = config.get("config_type")
-        config_id = ""
-
         # Generate config_id based on type
-        if config_type == "zone":
-            config_id = f"roi-{config['facility_id']}-{config['zone_id']}"
-        elif config_type == "device":
-            config_id = f"device-{config['device_id']}"
-        elif config_type == "threshold":
-            config_id = f"threshold-{config['threshold_id']}"
-        elif config_type == "alert_rule":
-            config_id = f"alert-{config['rule_id']}"
+        config_id = _generate_config_id(config)
 
         # Build item with metadata
-        item = config.copy()
-        item.update(
-            {
-                "config_id": config_id,
-                "timestamp": datetime.utcnow().isoformat() + "Z",
-                "version": config.get("version", 1),
-                "updated_by": config.get("updated_by", "system"),
-                "active": config.get("active", True),
-            }
-        )
+        item = _prepare_config_item(config, config_id)
 
         key = f"configs/{config_id}.json"
 
@@ -119,7 +156,7 @@ def save_config(config: Dict[str, Any]) -> Tuple[bool, str, str]:
         return False, str(e), ""
 
 
-def get_config(config_id: str) -> Dict[str, Any]:
+def get_config(config_id: str) -> dict[str, Any]:
     """
     Gets configuration by ID from S3.
     """
@@ -151,8 +188,8 @@ def get_configs_by_type(config_type: str) -> list:
 
         configs = []
         for obj in response["Contents"]:
-            key = obj["Key"]
-            if not key.endswith(".json"):
+            key = obj.get("Key")
+            if not key or not key.endswith(".json"):
                 continue
 
             try:
@@ -174,6 +211,59 @@ def get_configs_by_type(config_type: str) -> list:
         return []
 
 
+def _handle_save(payload: dict[str, Any]) -> dict[str, Any]:
+    config = payload.get("config", {})
+    success, message, config_id = save_config(config)
+
+    return {
+        "statusCode": 200 if success else 400,
+        "body": json.dumps(
+            {
+                "message": message,
+                "config_id": config_id,
+                "success": success,
+            }
+        ),
+    }
+
+
+def _handle_get(payload: dict[str, Any]) -> dict[str, Any]:
+    config_id = payload.get("config_id")
+    if not config_id:
+        return {
+            "statusCode": 400,
+            "body": json.dumps({"error": "config_id required"}),
+        }
+
+    config = get_config(config_id)
+    return {
+        "statusCode": 200,
+        "body": json.dumps({"config": config}, default=str),
+    }
+
+
+def _handle_list(payload: dict[str, Any]) -> dict[str, Any]:
+    config_type = payload.get("config_type")
+    if not config_type:
+        return {
+            "statusCode": 400,
+            "body": json.dumps({"error": "config_type required"}),
+        }
+
+    configs = get_configs_by_type(config_type)
+    return {
+        "statusCode": 200,
+        "body": json.dumps(
+            {
+                "config_type": config_type,
+                "count": len(configs),
+                "items": configs,
+            },
+            default=str,
+        ),
+    }
+
+
 def lambda_handler(event, context):
     """
     Handles configuration CRUD.
@@ -183,69 +273,21 @@ def lambda_handler(event, context):
         logger.info("config_saver triggered")
 
         # Parse payload
-        if "body" in event:
-            payload = (
-                json.loads(event["body"])
-                if isinstance(event["body"], str)
-                else event["body"]
-            )
-        else:
-            payload = event
+        payload = _parse_payload(event)
 
         action = payload.get("action", "SAVE").upper()
 
         # SAVE: Save new configuration
         if action == "SAVE":
-            config = payload.get("config", {})
-            success, message, config_id = save_config(config)
-
-            return {
-                "statusCode": 200 if success else 400,
-                "body": json.dumps(
-                    {
-                        "message": message,
-                        "config_id": config_id,
-                        "success": success,
-                    }
-                ),
-            }
+            return _handle_save(payload)
 
         # GET: Get configuration by ID
         elif action == "GET":
-            config_id = payload.get("config_id")
-            if not config_id:
-                return {
-                    "statusCode": 400,
-                    "body": json.dumps({"error": "config_id required"}),
-                }
-
-            config = get_config(config_id)
-            return {
-                "statusCode": 200,
-                "body": json.dumps({"config": config}, default=str),
-            }
+            return _handle_get(payload)
 
         # LIST: List by type
         elif action == "LIST":
-            config_type = payload.get("config_type")
-            if not config_type:
-                return {
-                    "statusCode": 400,
-                    "body": json.dumps({"error": "config_type required"}),
-                }
-
-            configs = get_configs_by_type(config_type)
-            return {
-                "statusCode": 200,
-                "body": json.dumps(
-                    {
-                        "config_type": config_type,
-                        "count": len(configs),
-                        "items": configs,
-                    },
-                    default=str,
-                ),
-            }
+            return _handle_list(payload)
 
         else:
             return {
