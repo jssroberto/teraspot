@@ -12,15 +12,13 @@ import boto3
 
 from .parser import parse_events
 from .qa import enrich_event, validate_data
-from .persistence import current_occupancy, save_current, save_history
-from .alerts import generate_alerts, dispatch_alerts
+from .persistence import save_current
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 REGION = os.getenv("REGION", "us-east-1")
 DYNAMODB_TABLE = os.getenv("DYNAMODB_TABLE", "parking-spaces-dev")
-HISTORY_TABLE = os.getenv("HISTORY_TABLE", "parking-history")
 SQS_ALERTS_URL = os.getenv("SQS_ALERTS_URL")
 SQS_LOW_CONFIDENCE_URL = os.getenv("SQS_LOW_CONFIDENCE_URL")
 
@@ -28,7 +26,6 @@ dynamodb = boto3.resource("dynamodb", region_name=REGION)
 sqs = boto3.client("sqs", region_name=REGION)
 
 current_table = dynamodb.Table(DYNAMODB_TABLE)
-history_table = dynamodb.Table(HISTORY_TABLE)
 
 
 def _extract_raw_payload(event: Any) -> Any:
@@ -87,37 +84,11 @@ def lambda_handler(event, context):
         logger.info("Saving current data")
         save_current(items, current_table)
 
-        logger.info("Saving historical data")
-        try:
-            save_history(items, history_table)
-        except Exception as exc:
-            if "ConditionalCheckFailedException" in str(exc):
-                logger.warning("Duplicate event detected. Skipping alerts and returning success.")
-                return {
-                    "statusCode": 200,
-                    "body": json.dumps(
-                        {
-                            "success": True,
-                            "message": "Duplicate event ignored",
-                            "items": len(items),
-                        }
-                    ),
-                }
-            raise exc
-
-        logger.info("Computing occupancy")
-        occupancy_stats = current_occupancy(current_table)
-
-        logger.info("Generating alerts")
-        alerts = generate_alerts(items, occupancy_stats)
-
-        logger.info("Sending alerts to SQS")
-        dispatch_alerts(alerts, sqs, SQS_LOW_CONFIDENCE_URL, SQS_ALERTS_URL)
+        
 
         logger.info(
-            "Complete: %d items, %d alerts, %d rejected",
+            "Complete: %d items processed, %d rejected",
             len(items),
-            len(alerts),
             rejected,
         )
 
@@ -127,12 +98,11 @@ def lambda_handler(event, context):
                 {
                     "success": True,
                     "items": len(items),
-                    "alerts": len(alerts),
                     "rejected": rejected,
                 }
             ),
         }
 
-    except Exception as exc:  # pragma: no cover - defensive
+    except Exception as exc: 
         logger.error("Unhandled error: %s", exc, exc_info=True)
         return {"statusCode": 500, "body": json.dumps({"error": str(exc)})}

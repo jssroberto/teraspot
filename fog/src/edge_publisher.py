@@ -19,7 +19,7 @@ from publisher_utils import (
     publish_change_events,
 )
 
-# Import YOLO processor (if using real inference)
+
 try:
     from yolo_processor import YOLOProcessor
 
@@ -28,7 +28,7 @@ except ImportError as e:
     logging.warning(f"YOLO processor not available: {e}")
     YOLO_AVAILABLE = False
 
-# Configure logging
+
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
@@ -55,7 +55,6 @@ def main():
     """Main function"""
     parser = argparse.ArgumentParser(description="TeraSpot Edge Publisher")
 
-    # YOLO arguments
     parser.add_argument(
         "--use-yolo",
         action="store_true",
@@ -109,7 +108,6 @@ def main():
         help="Optional AWS region for ROI S3 bucket",
     )
 
-    # Publisher arguments
     parser.add_argument(
         "--spaces", type=int, default=30, help="Number of parking spaces (default: 30)"
     )
@@ -131,7 +129,6 @@ def main():
 
     args = parser.parse_args()
 
-    # Load configuration from environment
     config = load_config_from_env()
 
     change_tracker = SpaceStateTracker()
@@ -145,7 +142,6 @@ def main():
             )
             sys.exit(1)
 
-    # Initialize YOLO if requested
     yolo = None
     if args.use_yolo:
         if not YOLO_AVAILABLE:
@@ -185,7 +181,6 @@ def main():
     logger.info("=" * 60)
 
     try:
-        # Create MQTT connection
         logger.info("\nConnecting to AWS IoT Core...")
         mqtt_connection = mqtt_connection_builder.mtls_from_path(
             endpoint=config["endpoint"],
@@ -200,20 +195,24 @@ def main():
             on_connection_closed=on_connection_closed,
         )
 
-        # Connect
+        
         connect_future = mqtt_connection.connect()
         connect_future.result()
 
-        # Publish messages
+        
         iteration = 0
+        last_publish_time = 0
+        HEARTBEAT_INTERVAL = 300  
+
         while args.iterations < 0 or iteration < args.iterations:
+            current_time = time.time()
+            
             if iteration > 0:
                 logger.info(f"\nWaiting {args.interval} seconds before next message...")
                 time.sleep(args.interval)
 
             logger.info(f"\nMessage {iteration + 1}")
 
-            # Generate snapshot
             data_source = "yolo11n" if yolo else "mocked"
             if yolo:
                 snapshot = yolo.detect_parking_spaces(
@@ -232,16 +231,35 @@ def main():
                 "data_source": data_source,
             }
 
+            
             changes = change_tracker.detect_changes(spaces)
-            if not changes:
+            
+            
+            time_since_last = current_time - last_publish_time
+            is_heartbeat = time_since_last > HEARTBEAT_INTERVAL
+
+            if not changes and not is_heartbeat:
                 logger.info("   No state changes detected; skipping publish")
                 iteration += 1
                 continue
 
-            events_payload = build_change_payload(changes, data_metadata)
+            
+            if is_heartbeat:
+                logger.info(f"HEARTBEAT TRIGGERED (Last publish: {int(time_since_last)}s ago)")
+                
+                all_spaces_list = []
+                for space_id, data in spaces.items():
+                    all_spaces_list.append({
+                        "space_id": space_id,
+                        "status": data["status"],
+                        "confidence": data["confidence"]
+                    })
+                events_payload = build_change_payload(all_spaces_list, data_metadata)
+            else:
+                events_payload = build_change_payload(changes, data_metadata)
 
             logger.info(
-                "   Occupied: %d | Vacant: %d | Source: %s",
+                "Occupied: %d | Vacant: %d | Source: %s",
                 snapshot["total_occupied"],
                 snapshot["total_vacant"],
                 data_source,
@@ -250,11 +268,12 @@ def main():
                 logger.info("   Detections: %d", snapshot["detections_count"])
 
             publish_change_events(mqtt_connection, config["topic"], events_payload)
+            last_publish_time = time.time()
             iteration += 1
 
         time.sleep(2)
 
-        # Disconnect
+        
         logger.info("\nDisconnecting...")
         disconnect_future = mqtt_connection.disconnect()
         disconnect_future.result()
