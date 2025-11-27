@@ -53,3 +53,9 @@ Thumbs.db
 *.tar.gz
 
 docs/pdfs
+
+# Terraform (Global)
+.terraform/
+*.tfstate
+*.tfstate.backup
+*.tfvars
