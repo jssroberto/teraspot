@@ -16,27 +16,37 @@ IOT_ENDPOINT = os.getenv("IOT_ENDPOINT")
 if IOT_ENDPOINT and not IOT_ENDPOINT.startswith("https://"):
     IOT_ENDPOINT = f"https://{IOT_ENDPOINT}"
 
-# Initialize clients
-s3_client = boto3.client("s3", region_name=AWS_REGION)
-iot_client = boto3.client("iot-data", region_name=AWS_REGION, endpoint_url=IOT_ENDPOINT)
+# Initialize clients lazily
+s3_client = None
+iot_client = None
 
 
-def _generate_presigned_url(device_id):
-    """Generates a presigned URL for uploading a screenshot."""
+def _generate_presigned_urls(device_id):
+    """Generates presigned URLs for uploading and downloading a screenshot."""
     timestamp = int(time.time())
     key = f"screenshots/{device_id}/{timestamp}.jpg"
     
     try:
-        url = s3_client.generate_presigned_url(
+        upload_url = s3_client.generate_presigned_url(
             ClientMethod="put_object",
             Params={
                 "Bucket": SCREENSHOT_BUCKET,
                 "Key": key,
                 "ContentType": "image/jpeg"
             },
-            ExpiresIn=300  # 5 minutes
+            ExpiresIn=300
         )
-        return url, key
+        
+        download_url = s3_client.generate_presigned_url(
+            ClientMethod="get_object",
+            Params={
+                "Bucket": SCREENSHOT_BUCKET,
+                "Key": key,
+            },
+            ExpiresIn=300
+        )
+        
+        return upload_url, download_url, key
     except ClientError as e:
         logger.error(f"Error generating presigned URL: {e}")
         raise
@@ -60,11 +70,16 @@ def _publish_command(device_id, payload):
 def lambda_handler(event, context):
     """
     Handles device commands.
-    Payload: {"device_id": "...", "command": "screenshot" | "reload_config"}
     """
     try:
         logger.info("device_command triggered")
         
+        global s3_client, iot_client
+        if not s3_client:
+            s3_client = boto3.client("s3", region_name=AWS_REGION)
+        if not iot_client:
+            iot_client = boto3.client("iot-data", region_name=AWS_REGION, endpoint_url=IOT_ENDPOINT)
+
         # Parse body
         body = event.get("body", "{}")
         if isinstance(body, str):
@@ -82,8 +97,8 @@ def lambda_handler(event, context):
         response_data = {"device_id": device_id, "command": command}
 
         if command == "screenshot":
-            # 1. Generate Presigned URL
-            upload_url, key = _generate_presigned_url(device_id)
+            # 1. Generate Presigned URLs
+            upload_url, download_url, key = _generate_presigned_urls(device_id)
             
             # 2. Send command to device
             cmd_payload = {
@@ -95,6 +110,7 @@ def lambda_handler(event, context):
             
             response_data["message"] = "Screenshot requested"
             response_data["upload_url"] = upload_url
+            response_data["download_url"] = download_url
             response_data["s3_key"] = key
 
         elif command == "reload_config":

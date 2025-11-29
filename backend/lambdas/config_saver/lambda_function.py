@@ -280,6 +280,35 @@ def _handle_list(payload: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def delete_config(config_id: str) -> tuple[bool, str]:
+    """
+    Deletes configuration from S3.
+    """
+    try:
+        key = f"configs/{config_id}.json"
+        s3_client.delete_object(Bucket=CONFIG_BUCKET_NAME, Key=key)
+        logger.info(f"Deleted config: {config_id}")
+        return True, f"Config {config_id} deleted successfully"
+    except Exception as e:
+        logger.error(f"Failed to delete config {config_id}: {str(e)}")
+        return False, str(e)
+
+
+def _handle_delete(payload: dict[str, Any]) -> dict[str, Any]:
+    config_id = payload.get("config_id")
+    if not config_id:
+        return {
+            "statusCode": 400,
+            "body": json.dumps({"error": "config_id required"}),
+        }
+
+    success, message = delete_config(config_id)
+    return {
+        "statusCode": 200 if success else 500,
+        "body": json.dumps({"message": message, "success": success}),
+    }
+
+
 def lambda_handler(event, context):
     """
     Handles configuration CRUD.
@@ -304,6 +333,10 @@ def lambda_handler(event, context):
         # LIST: List by type
         elif action == "LIST":
             return _handle_list(payload)
+
+        # DELETE: Delete configuration
+        elif action == "DELETE":
+            return _handle_delete(payload)
 
         else:
             return {

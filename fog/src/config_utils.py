@@ -106,7 +106,41 @@ def _load_roi_config_from_s3(bucket, key, region=None):
     return _extract_roi_spaces(payload)
 
 
+import requests
+
+def _load_roi_config_from_api(device_id):
+    try:
+        api_url = "https://7omj4x5pbg.execute-api.us-east-1.amazonaws.com/dev/config"
+        payload = {
+            "action": "GET",
+            "config_id": f"roi-{device_id}"
+        }
+        resp = requests.post(api_url, json=payload, timeout=5)
+        if resp.status_code == 200:
+            config = resp.json().get("config", {})
+            # The API returns the full config object. We need config['value']['spaces']
+            value = config.get("value", {})
+            spaces = value.get("spaces")
+            if spaces:
+                return spaces
+        else:
+            print(f"!!! API returned status code: {resp.status_code}")
+            print(f"Response: {resp.text}")
+    except Exception as e:
+        logger.warning(f"Failed to fetch ROI from API: {e}")
+        print(f"!!! API FETCH FAILED: {e}")
+    return None
+
+
 def resolve_roi_spaces(args) -> Optional[List[dict]]:
+    # 1. Try API first (Dynamic Config)
+    if args.device_id:
+        spaces = _load_roi_config_from_api(args.device_id)
+        if spaces:
+            logger.info(f"Loaded ROI config from API for device {args.device_id}")
+            return spaces
+
+    # 2. Fallback to Local File
     if args.roi_config:
         try:
             spaces = _load_roi_config_from_file(args.roi_config)
@@ -114,8 +148,9 @@ def resolve_roi_spaces(args) -> Optional[List[dict]]:
             return spaces
         except (OSError, ValueError, json.JSONDecodeError) as exc:
             logger.error("Failed to load ROI config file: %s", exc)
-            sys.exit(1)
-
+            # Don't exit, just log error and try next method
+    
+    # 3. Fallback to S3 (Direct)
     if args.roi_s3_bucket and args.roi_s3_key:
         try:
             spaces = _load_roi_config_from_s3(

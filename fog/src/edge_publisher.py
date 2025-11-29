@@ -65,8 +65,8 @@ def main():
     )
     parser.add_argument(
         "--image",
-        default="assets/bus.jpg",
-        help="Image path for YOLO inference (default: assets/bus.jpg)",
+        default="fog/assets/bus.jpg",
+        help="Image path for YOLO inference (default: fog/assets/bus.jpg)",
     )
     parser.add_argument(
         "--video",
@@ -87,8 +87,8 @@ def main():
     parser.add_argument(
         "--conf-threshold",
         type=float,
-        default=0.75,
-        help="Confidence threshold for YOLO inference (default: 0.75)",
+        default=0.25,
+        help="Confidence threshold for YOLO inference (default: 0.25)",
     )
     parser.add_argument(
         "--roi-config",
@@ -134,10 +134,33 @@ def main():
 
     config = load_config_from_env()
 
+    # Sync device_id with Thing Name if using default
+    if args.device_id == "teraspot-edge-device" and config.get("thing_name"):
+        args.device_id = config["thing_name"]
+        logger.info(f"Using Thing Name as Device ID: {args.device_id}")
+
     change_tracker = SpaceStateTracker()
     roi_spaces = None
     if args.use_yolo:
         roi_spaces = resolve_roi_spaces(args)
+        
+        # Try to fetch dynamic config (Video Source) from API
+        try:
+            api_url = f"https://7omj4x5pbg.execute-api.us-east-1.amazonaws.com/dev/config"
+            payload = {
+                "action": "GET",
+                "config_id": f"device-{args.device_id}"
+            }
+            resp = requests.post(api_url, json=payload, timeout=5)
+            if resp.status_code == 200:
+                device_config = resp.json().get("config", {}).get("value", {})
+                remote_video = device_config.get("video_source")
+                if remote_video:
+                    logger.info(f"Found remote video source configuration: {remote_video}")
+                    args.video = remote_video
+        except Exception as e:
+            logger.warning(f"Failed to fetch remote device config: {e}")
+
         if not roi_spaces:
             logger.error(
                 "ROI configuration is required when running YOLO inference. "
@@ -289,7 +312,7 @@ def main():
             
             
             time_since_last = current_time - last_publish_time
-            is_heartbeat = time_since_last > HEARTBEAT_INTERVAL
+            is_heartbeat = time_since_last > HEARTBEAT_INTERVAL or iteration == 0
 
             if not changes and not is_heartbeat:
                 logger.info("   No state changes detected; skipping publish")

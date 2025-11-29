@@ -148,7 +148,7 @@ class YOLOProcessor:
         return frame
 
     def _map_detections_to_spaces(
-        self, detections: List[Dict[str, Optional[float]]]
+        self, detections: List[Dict[str, Optional[float]]], width: int, height: int
     ) -> Dict[str, float]:
         """Return per-space confidence scores from detection centerpoints."""
         occupancy: Dict[str, float] = {}
@@ -156,8 +156,12 @@ class YOLOProcessor:
             center = detection.get("center")
             if not center:
                 continue
+            
+            # Normalize center to 0-1 to match ROI polygons
+            norm_center = (center[0] / width, center[1] / height)
+            
             for roi in self._roi_spaces.values():
-                if point_in_polygon(center, roi.polygon):
+                if point_in_polygon(norm_center, roi.polygon):
                     confidence = float(detection.get("confidence") or 0.0)
                     prev = occupancy.get(roi.space_id)
                     if prev is None or confidence > prev:
@@ -229,10 +233,12 @@ class YOLOProcessor:
                                 "confidence": float(conf) if conf is not None else None,
                             }
                         )
+                        logger.info(f"   -> Detected object at {center} with conf {conf:.2f}")
 
                 # Accumulate votes if ROIs are defined
                 if self._roi_spaces:
-                    occupancy_map = self._map_detections_to_spaces(detections)
+                    height, width = inference_source.shape[:2]
+                    occupancy_map = self._map_detections_to_spaces(detections, width, height)
                     for space_id, conf in occupancy_map.items():
                         space_votes[space_id] = space_votes.get(space_id, 0) + 1
                         space_conf_sum[space_id] = (

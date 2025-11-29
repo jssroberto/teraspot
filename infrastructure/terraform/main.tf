@@ -2,6 +2,8 @@ provider "aws" {
   region = var.aws_region
 }
 
+data "aws_caller_identity" "current" {}
+
 # ==============================================================================
 # S3 Bucket
 # ==============================================================================
@@ -59,6 +61,7 @@ resource "aws_iam_role_policy" "lambda_policy" {
         Action = [
           "s3:PutObject",
           "s3:GetObject",
+          "s3:DeleteObject",
           "s3:ListBucket"
         ]
         Resource = [
@@ -128,7 +131,9 @@ resource "aws_api_gateway_integration" "lambda_integration" {
 # Deployment
 resource "aws_api_gateway_deployment" "deployment" {
   depends_on = [
-    aws_api_gateway_integration.lambda_integration
+    aws_api_gateway_integration.lambda_integration,
+    aws_api_gateway_integration.command_integration,
+    aws_api_gateway_integration.status_integration
   ]
 
   rest_api_id = aws_api_gateway_rest_api.api.id
@@ -214,7 +219,8 @@ resource "aws_iam_role_policy" "device_command_policy" {
       {
         Effect = "Allow"
         Action = [
-          "s3:PutObject"
+          "s3:PutObject",
+          "s3:GetObject"
         ]
         Resource = [
           "${aws_s3_bucket.config_bucket.arn}/screenshots/*"
@@ -230,8 +236,9 @@ resource "aws_lambda_function" "device_command" {
   role             = aws_iam_role.device_command_role.arn
   handler          = "lambda_function.lambda_handler"
   source_code_hash = data.archive_file.device_command_zip.output_base64sha256
-  runtime          = "python3.13"
-  timeout          = 10
+  runtime          = "python3.12"
+  timeout          = 30
+  memory_size      = 256
 
   environment {
     variables = {
@@ -284,4 +291,202 @@ resource "aws_lambda_permission" "apigw_command_lambda" {
   function_name = aws_lambda_function.device_command.function_name
   principal     = "apigateway.amazonaws.com"
   source_arn    = "${aws_api_gateway_rest_api.api.execution_arn}/*/*"
+}
+
+
+# ==============================================================================
+# Read Status Lambda
+# ==============================================================================
+data "archive_file" "read_status_zip" {
+  type        = "zip"
+  source_file = "${path.module}/../../backend/lambdas/read_status/lambda_function.py"
+  output_path = "${path.module}/read_status.zip"
+}
+
+resource "aws_iam_role" "read_status_role" {
+  name = "teraspot_read_status_role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "sts:AssumeRole"
+        Effect = "Allow"
+        Principal = {
+          Service = "lambda.amazonaws.com"
+        }
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy" "read_status_policy" {
+  name = "teraspot_read_status_policy"
+  role = aws_iam_role.read_status_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "logs:CreateLogGroup",
+          "logs:CreateLogStream",
+          "logs:PutLogEvents"
+        ]
+        Resource = "arn:aws:logs:*:*:*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "dynamodb:GetItem",
+          "dynamodb:Scan",
+          "dynamodb:Query"
+        ]
+        Resource = "arn:aws:dynamodb:${var.aws_region}:${data.aws_caller_identity.current.account_id}:table/${var.dynamodb_table_name}"
+      }
+    ]
+  })
+}
+
+resource "aws_lambda_function" "read_status" {
+  filename         = data.archive_file.read_status_zip.output_path
+  function_name    = "teraspot-read-status"
+  role             = aws_iam_role.read_status_role.arn
+  handler          = "lambda_function.lambda_handler"
+  source_code_hash = data.archive_file.read_status_zip.output_base64sha256
+  runtime          = "python3.13"
+  timeout          = 10
+
+  environment {
+    variables = {
+      DYNAMODB_TABLE_NAME = var.dynamodb_table_name
+    }
+  }
+}
+
+# ==============================================================================
+# API Gateway - Read Status
+# ==============================================================================
+resource "aws_api_gateway_resource" "status_resource" {
+  rest_api_id = aws_api_gateway_rest_api.api.id
+  parent_id   = aws_api_gateway_rest_api.api.root_resource_id
+  path_part   = "status"
+}
+
+resource "aws_api_gateway_method" "get_status" {
+  rest_api_id   = aws_api_gateway_rest_api.api.id
+  resource_id   = aws_api_gateway_resource.status_resource.id
+  http_method   = "GET"
+  authorization = "NONE"
+}
+
+resource "aws_api_gateway_integration" "status_integration" {
+  rest_api_id             = aws_api_gateway_rest_api.api.id
+  resource_id             = aws_api_gateway_resource.status_resource.id
+  http_method             = aws_api_gateway_method.get_status.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.read_status.invoke_arn
+}
+
+resource "aws_lambda_permission" "apigw_read_status_lambda" {
+  statement_id  = "AllowExecutionFromAPIGateway"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.read_status.function_name
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${aws_api_gateway_rest_api.api.execution_arn}/*/*"
+}
+
+# ==============================================================================
+# Ingest Status Lambda
+# ==============================================================================
+data "archive_file" "ingest_status_zip" {
+  type        = "zip"
+  source_dir  = "${path.module}/../../backend/lambdas/ingest_status"
+  output_path = "${path.module}/ingest_status.zip"
+}
+
+resource "aws_iam_role" "ingest_status_role" {
+  name = "teraspot_ingest_status_role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "sts:AssumeRole"
+        Effect = "Allow"
+        Principal = {
+          Service = "lambda.amazonaws.com"
+        }
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy" "ingest_status_policy" {
+  name = "teraspot_ingest_status_policy"
+  role = aws_iam_role.ingest_status_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "logs:CreateLogGroup",
+          "logs:CreateLogStream",
+          "logs:PutLogEvents"
+        ]
+        Resource = "arn:aws:logs:*:*:*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "dynamodb:PutItem",
+          "dynamodb:UpdateItem",
+          "dynamodb:BatchWriteItem"
+        ]
+        Resource = "arn:aws:dynamodb:${var.aws_region}:${data.aws_caller_identity.current.account_id}:table/${var.dynamodb_table_name}"
+      }
+    ]
+  })
+}
+
+resource "aws_lambda_function" "ingest_status" {
+  filename         = data.archive_file.ingest_status_zip.output_path
+  function_name    = "teraspot-ingest-status"
+  role             = aws_iam_role.ingest_status_role.arn
+  handler          = "lambda_function.lambda_handler"
+  source_code_hash = data.archive_file.ingest_status_zip.output_base64sha256
+  runtime          = "python3.12"
+  timeout          = 30
+
+  environment {
+    variables = {
+      DYNAMODB_TABLE = var.dynamodb_table_name
+    }
+  }
+}
+
+# ==============================================================================
+# IoT Rule
+# ==============================================================================
+resource "aws_iot_topic_rule" "ingest_rule" {
+  name        = "teraspot_ingest_rule_new"
+  enabled     = true
+  sql         = "SELECT * FROM 'teraspot/+/+/+/status'"
+  sql_version = "2016-03-23"
+
+  lambda {
+    function_arn = aws_lambda_function.ingest_status.arn
+  }
+}
+
+resource "aws_lambda_permission" "iot_ingest_lambda" {
+  statement_id  = "AllowExecutionFromIoT"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.ingest_status.function_name
+  principal     = "iot.amazonaws.com"
+  source_arn    = aws_iot_topic_rule.ingest_rule.arn
 }

@@ -1,0 +1,1215 @@
+{
+  "version": 4,
+  "terraform_version": "1.13.4",
+  "serial": 53,
+  "lineage": "23f6200f-c287-906c-f0fb-1d23b47fa753",
+  "outputs": {
+    "api_gateway_url": {
+      "value": "https://7omj4x5pbg.execute-api.us-east-1.amazonaws.com/dev",
+      "type": "string"
+    },
+    "config_endpoint": {
+      "value": "https://7omj4x5pbg.execute-api.us-east-1.amazonaws.com/dev/config",
+      "type": "string"
+    },
+    "s3_bucket_name": {
+      "value": "teraspot-config-dev",
+      "type": "string"
+    }
+  },
+  "resources": [
+    {
+      "mode": "data",
+      "type": "archive_file",
+      "name": "device_command_zip",
+      "provider": "provider[\"registry.terraform.io/hashicorp/archive\"]",
+      "instances": [
+        {
+          "schema_version": 0,
+          "attributes": {
+            "exclude_symlink_directories": null,
+            "excludes": null,
+            "id": "8ae039426f2627e74c00c5a660442c48f874ed91",
+            "output_base64sha256": "hOx9SnSVy3aTi1X15jxKD+oy1oivSfXNqYYmkT1XObs=",
+            "output_base64sha512": "iz8F4WYUtRxj4/fZRSCK1TVuadiFIji8jMTYSUk56urtUgrakUzdm5K1AtIXQ1+9d7cBI6PP3IUU6UThoTSJUw==",
+            "output_file_mode": null,
+            "output_md5": "69d54ebc1bc067f394eb41bd8cbb2d25",
+            "output_path": "C:/Users/elimo/GitHub/teraspot/infrastructure/terraform/device_command.zip",
+            "output_sha": "8ae039426f2627e74c00c5a660442c48f874ed91",
+            "output_sha256": "84ec7d4a7495cb76938b55f5e63c4a0fea32d688af49f5cda98626913d5739bb",
+            "output_sha512": "8b3f05e16614b51c63e3f7d945208ad5356e69d8852238bc8cc4d8494939eaeaed520ada914cdd9b92b502d217435fbd77b70123a3cfdc8514e944e1a1348953",
+            "output_size": 1414,
+            "source": [],
+            "source_content": null,
+            "source_content_filename": null,
+            "source_dir": null,
+            "source_file": "C:/Users/elimo/GitHub/teraspot/infrastructure/terraform/../../backend/lambdas/device_command/lambda_function.py",
+            "type": "zip"
+          },
+          "sensitive_attributes": [],
+          "identity_schema_version": 0
+        }
+      ]
+    },
+    {
+      "mode": "data",
+      "type": "archive_file",
+      "name": "lambda_zip",
+      "provider": "provider[\"registry.terraform.io/hashicorp/archive\"]",
+      "instances": [
+        {
+          "schema_version": 0,
+          "attributes": {
+            "exclude_symlink_directories": null,
+            "excludes": null,
+            "id": "e3d5d861e9d02fa37a124d3a3df96f335a452753",
+            "output_base64sha256": "MmZnqTDsNuyzq+ASQj3+Ixyw8khEa7E+eGmP4cA+LyY=",
+            "output_base64sha512": "DY7m0AOhw5Hyiz972VvW3sY9sCVdSZiu2Jop/V3Y/joMZ00vX93n1gtsJeAJ+oxX/XHJ6Z6w2KM6rOk/43OhzQ==",
+            "output_file_mode": null,
+            "output_md5": "bd92e9c808866fce83db12370f6bcbbf",
+            "output_path": "C:/Users/elimo/GitHub/teraspot/infrastructure/terraform/lambda_function.zip",
+            "output_sha": "e3d5d861e9d02fa37a124d3a3df96f335a452753",
+            "output_sha256": "326667a930ec36ecb3abe012423dfe231cb0f248446bb13e78698fe1c03e2f26",
+            "output_sha512": "0d8ee6d003a1c391f28b3f7bd95bd6dec63db0255d4998aed89a29fd5dd8fe3a0c674d2f5fdde7d60b6c25e009fa8c57fd71c9e99eb0d8a33aace93fe373a1cd",
+            "output_size": 2818,
+            "source": [],
+            "source_content": null,
+            "source_content_filename": null,
+            "source_dir": null,
+            "source_file": "C:/Users/elimo/GitHub/teraspot/infrastructure/terraform/../../backend/lambdas/config_saver/lambda_function.py",
+            "type": "zip"
+          },
+          "sensitive_attributes": [],
+          "identity_schema_version": 0
+        }
+      ]
+    },
+    {
+      "mode": "data",
+      "type": "archive_file",
+      "name": "read_status_zip",
+      "provider": "provider[\"registry.terraform.io/hashicorp/archive\"]",
+      "instances": [
+        {
+          "schema_version": 0,
+          "attributes": {
+            "exclude_symlink_directories": null,
+            "excludes": null,
+            "id": "ee06afa9f879e2fd87101a97965700202a835b6a",
+            "output_base64sha256": "JpJJT9FkdGnpJ9BXS0jNJmmT28f5MI+N8ZVJWQwOWA4=",
+            "output_base64sha512": "dpaRUYv1qkgi5Wz5sb8PxpaJmkXbhNRCK3VOb7ICWR/XYpPPl96iNKj1uvwgLza7I3mXNEuPTOe0sxnonOvlBA==",
+            "output_file_mode": null,
+            "output_md5": "34d8354bf53e18473e83f086ae8a0e36",
+            "output_path": "C:/Users/elimo/GitHub/teraspot/infrastructure/terraform/read_status.zip",
+            "output_sha": "ee06afa9f879e2fd87101a97965700202a835b6a",
+            "output_sha256": "2692494fd1647469e927d0574b48cd266993dbc7f9308f8df19549590c0e580e",
+            "output_sha512": "769691518bf5aa4822e56cf9b1bf0fc696899a45db84d4422b754e6fb202591fd76293cf97dea234a8f5bafc202f36bb237997344b8f4ce7b4b319e89cebe504",
+            "output_size": 1920,
+            "source": [],
+            "source_content": null,
+            "source_content_filename": null,
+            "source_dir": null,
+            "source_file": "C:/Users/elimo/GitHub/teraspot/infrastructure/terraform/../../backend/lambdas/read_status/lambda_function.py",
+            "type": "zip"
+          },
+          "sensitive_attributes": [],
+          "identity_schema_version": 0
+        }
+      ]
+    },
+    {
+      "mode": "data",
+      "type": "aws_caller_identity",
+      "name": "current",
+      "provider": "provider[\"registry.terraform.io/hashicorp/aws\"]",
+      "instances": [
+        {
+          "schema_version": 0,
+          "attributes": {
+            "account_id": "755453699050",
+            "arn": "arn:aws:iam::755453699050:user/eliana.monge",
+            "id": "755453699050",
+            "user_id": "AIDA27ZEMUPVLAVSYA367"
+          },
+          "sensitive_attributes": [],
+          "identity_schema_version": 0
+        }
+      ]
+    },
+    {
+      "mode": "managed",
+      "type": "aws_api_gateway_deployment",
+      "name": "deployment",
+      "provider": "provider[\"registry.terraform.io/hashicorp/aws\"]",
+      "instances": [
+        {
+          "schema_version": 0,
+          "attributes": {
+            "created_date": "2025-11-29T08:21:21Z",
+            "description": "",
+            "id": "uunvih",
+            "region": "us-east-1",
+            "rest_api_id": "7omj4x5pbg",
+            "triggers": {
+              "redeployment": "2be88ca4242c76e8253ac62474851065032d6833"
+            },
+            "variables": null
+          },
+          "sensitive_attributes": [],
+          "identity_schema_version": 0,
+          "private": "bnVsbA==",
+          "dependencies": [
+            "aws_api_gateway_integration.lambda_integration",
+            "aws_api_gateway_method.post_config",
+            "aws_api_gateway_resource.config_resource",
+            "aws_api_gateway_rest_api.api",
+            "aws_iam_role.lambda_role",
+            "aws_lambda_function.config_saver",
+            "aws_s3_bucket.config_bucket",
+            "data.archive_file.lambda_zip"
+          ],
+          "create_before_destroy": true
+        }
+      ]
+    },
+    {
+      "mode": "managed",
+      "type": "aws_api_gateway_integration",
+      "name": "command_integration",
+      "provider": "provider[\"registry.terraform.io/hashicorp/aws\"]",
+      "instances": [
+        {
+          "schema_version": 0,
+          "attributes": {
+            "cache_key_parameters": [],
+            "cache_namespace": "x3mbb8",
+            "connection_id": "",
+            "connection_type": "INTERNET",
+            "content_handling": "",
+            "credentials": "",
+            "http_method": "POST",
+            "id": "agi-7omj4x5pbg-x3mbb8-POST",
+            "integration_http_method": "POST",
+            "passthrough_behavior": "WHEN_NO_MATCH",
+            "region": "us-east-1",
+            "request_parameters": {},
+            "request_templates": {},
+            "resource_id": "x3mbb8",
+            "rest_api_id": "7omj4x5pbg",
+            "timeout_milliseconds": 29000,
+            "tls_config": [],
+            "type": "AWS_PROXY",
+            "uri": "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:755453699050:function:teraspot-device-command/invocations"
+          },
+          "sensitive_attributes": [],
+          "identity_schema_version": 0,
+          "private": "bnVsbA==",
+          "dependencies": [
+            "aws_api_gateway_method.post_command",
+            "aws_api_gateway_resource.command_resource",
+            "aws_api_gateway_resource.device_id_resource",
+            "aws_api_gateway_resource.device_resource",
+            "aws_api_gateway_rest_api.api",
+            "aws_iam_role.device_command_role",
+            "aws_lambda_function.device_command",
+            "aws_s3_bucket.config_bucket",
+            "data.archive_file.device_command_zip"
+          ]
+        }
+      ]
+    },
+    {
+      "mode": "managed",
+      "type": "aws_api_gateway_integration",
+      "name": "lambda_integration",
+      "provider": "provider[\"registry.terraform.io/hashicorp/aws\"]",
+      "instances": [
+        {
+          "schema_version": 0,
+          "attributes": {
+            "cache_key_parameters": [],
+            "cache_namespace": "h3gr9v",
+            "connection_id": "",
+            "connection_type": "INTERNET",
+            "content_handling": "",
+            "credentials": "",
+            "http_method": "POST",
+            "id": "agi-7omj4x5pbg-h3gr9v-POST",
+            "integration_http_method": "POST",
+            "passthrough_behavior": "WHEN_NO_MATCH",
+            "region": "us-east-1",
+            "request_parameters": {},
+            "request_templates": {},
+            "resource_id": "h3gr9v",
+            "rest_api_id": "7omj4x5pbg",
+            "timeout_milliseconds": 29000,
+            "tls_config": [],
+            "type": "AWS_PROXY",
+            "uri": "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:755453699050:function:teraspot-config-saver/invocations"
+          },
+          "sensitive_attributes": [],
+          "identity_schema_version": 0,
+          "private": "bnVsbA==",
+          "dependencies": [
+            "aws_api_gateway_method.post_config",
+            "aws_api_gateway_resource.config_resource",
+            "aws_api_gateway_rest_api.api",
+            "aws_iam_role.lambda_role",
+            "aws_lambda_function.config_saver",
+            "aws_s3_bucket.config_bucket",
+            "data.archive_file.lambda_zip"
+          ],
+          "create_before_destroy": true
+        }
+      ]
+    },
+    {
+      "mode": "managed",
+      "type": "aws_api_gateway_method",
+      "name": "get_status",
+      "provider": "provider[\"registry.terraform.io/hashicorp/aws\"]",
+      "instances": [
+        {
+          "schema_version": 0,
+          "attributes": {
+            "api_key_required": false,
+            "authorization": "NONE",
+            "authorization_scopes": [],
+            "authorizer_id": "",
+            "http_method": "GET",
+            "id": "agm-7omj4x5pbg-87evzd-GET",
+            "operation_name": "",
+            "region": "us-east-1",
+            "request_models": {},
+            "request_parameters": {},
+            "request_validator_id": "",
+            "resource_id": "87evzd",
+            "rest_api_id": "7omj4x5pbg"
+          },
+          "sensitive_attributes": [],
+          "identity_schema_version": 0,
+          "private": "bnVsbA==",
+          "dependencies": [
+            "aws_api_gateway_resource.status_resource",
+            "aws_api_gateway_rest_api.api"
+          ]
+        }
+      ]
+    },
+    {
+      "mode": "managed",
+      "type": "aws_api_gateway_method",
+      "name": "post_command",
+      "provider": "provider[\"registry.terraform.io/hashicorp/aws\"]",
+      "instances": [
+        {
+          "schema_version": 0,
+          "attributes": {
+            "api_key_required": false,
+            "authorization": "NONE",
+            "authorization_scopes": [],
+            "authorizer_id": "",
+            "http_method": "POST",
+            "id": "agm-7omj4x5pbg-x3mbb8-POST",
+            "operation_name": "",
+            "region": "us-east-1",
+            "request_models": {},
+            "request_parameters": {},
+            "request_validator_id": "",
+            "resource_id": "x3mbb8",
+            "rest_api_id": "7omj4x5pbg"
+          },
+          "sensitive_attributes": [],
+          "identity_schema_version": 0,
+          "private": "bnVsbA==",
+          "dependencies": [
+            "aws_api_gateway_resource.command_resource",
+            "aws_api_gateway_resource.device_id_resource",
+            "aws_api_gateway_resource.device_resource",
+            "aws_api_gateway_rest_api.api"
+          ]
+        }
+      ]
+    },
+    {
+      "mode": "managed",
+      "type": "aws_api_gateway_method",
+      "name": "post_config",
+      "provider": "provider[\"registry.terraform.io/hashicorp/aws\"]",
+      "instances": [
+        {
+          "schema_version": 0,
+          "attributes": {
+            "api_key_required": false,
+            "authorization": "NONE",
+            "authorization_scopes": [],
+            "authorizer_id": "",
+            "http_method": "POST",
+            "id": "agm-7omj4x5pbg-h3gr9v-POST",
+            "operation_name": "",
+            "region": "us-east-1",
+            "request_models": {},
+            "request_parameters": {},
+            "request_validator_id": "",
+            "resource_id": "h3gr9v",
+            "rest_api_id": "7omj4x5pbg"
+          },
+          "sensitive_attributes": [],
+          "identity_schema_version": 0,
+          "private": "bnVsbA==",
+          "dependencies": [
+            "aws_api_gateway_resource.config_resource",
+            "aws_api_gateway_rest_api.api"
+          ],
+          "create_before_destroy": true
+        }
+      ]
+    },
+    {
+      "mode": "managed",
+      "type": "aws_api_gateway_resource",
+      "name": "command_resource",
+      "provider": "provider[\"registry.terraform.io/hashicorp/aws\"]",
+      "instances": [
+        {
+          "schema_version": 0,
+          "attributes": {
+            "id": "x3mbb8",
+            "parent_id": "dz49aw",
+            "path": "/device/{device_id}/command",
+            "path_part": "command",
+            "region": "us-east-1",
+            "rest_api_id": "7omj4x5pbg"
+          },
+          "sensitive_attributes": [],
+          "identity_schema_version": 0,
+          "private": "bnVsbA==",
+          "dependencies": [
+            "aws_api_gateway_resource.device_id_resource",
+            "aws_api_gateway_resource.device_resource",
+            "aws_api_gateway_rest_api.api"
+          ]
+        }
+      ]
+    },
+    {
+      "mode": "managed",
+      "type": "aws_api_gateway_resource",
+      "name": "config_resource",
+      "provider": "provider[\"registry.terraform.io/hashicorp/aws\"]",
+      "instances": [
+        {
+          "schema_version": 0,
+          "attributes": {
+            "id": "h3gr9v",
+            "parent_id": "0qids3wwjj",
+            "path": "/config",
+            "path_part": "config",
+            "region": "us-east-1",
+            "rest_api_id": "7omj4x5pbg"
+          },
+          "sensitive_attributes": [],
+          "identity_schema_version": 0,
+          "private": "bnVsbA==",
+          "dependencies": [
+            "aws_api_gateway_rest_api.api"
+          ],
+          "create_before_destroy": true
+        }
+      ]
+    },
+    {
+      "mode": "managed",
+      "type": "aws_api_gateway_resource",
+      "name": "device_id_resource",
+      "provider": "provider[\"registry.terraform.io/hashicorp/aws\"]",
+      "instances": [
+        {
+          "schema_version": 0,
+          "attributes": {
+            "id": "dz49aw",
+            "parent_id": "1b3z8v",
+            "path": "/device/{device_id}",
+            "path_part": "{device_id}",
+            "region": "us-east-1",
+            "rest_api_id": "7omj4x5pbg"
+          },
+          "sensitive_attributes": [],
+          "identity_schema_version": 0,
+          "private": "bnVsbA==",
+          "dependencies": [
+            "aws_api_gateway_resource.device_resource",
+            "aws_api_gateway_rest_api.api"
+          ]
+        }
+      ]
+    },
+    {
+      "mode": "managed",
+      "type": "aws_api_gateway_resource",
+      "name": "device_resource",
+      "provider": "provider[\"registry.terraform.io/hashicorp/aws\"]",
+      "instances": [
+        {
+          "schema_version": 0,
+          "attributes": {
+            "id": "1b3z8v",
+            "parent_id": "0qids3wwjj",
+            "path": "/device",
+            "path_part": "device",
+            "region": "us-east-1",
+            "rest_api_id": "7omj4x5pbg"
+          },
+          "sensitive_attributes": [],
+          "identity_schema_version": 0,
+          "private": "bnVsbA==",
+          "dependencies": [
+            "aws_api_gateway_rest_api.api"
+          ]
+        }
+      ]
+    },
+    {
+      "mode": "managed",
+      "type": "aws_api_gateway_resource",
+      "name": "status_resource",
+      "provider": "provider[\"registry.terraform.io/hashicorp/aws\"]",
+      "instances": [
+        {
+          "schema_version": 0,
+          "attributes": {
+            "id": "87evzd",
+            "parent_id": "0qids3wwjj",
+            "path": "/status",
+            "path_part": "status",
+            "region": "us-east-1",
+            "rest_api_id": "7omj4x5pbg"
+          },
+          "sensitive_attributes": [],
+          "identity_schema_version": 0,
+          "private": "bnVsbA==",
+          "dependencies": [
+            "aws_api_gateway_rest_api.api"
+          ]
+        }
+      ]
+    },
+    {
+      "mode": "managed",
+      "type": "aws_api_gateway_rest_api",
+      "name": "api",
+      "provider": "provider[\"registry.terraform.io/hashicorp/aws\"]",
+      "instances": [
+        {
+          "schema_version": 0,
+          "attributes": {
+            "api_key_source": "HEADER",
+            "arn": "arn:aws:apigateway:us-east-1::/restapis/7omj4x5pbg",
+            "binary_media_types": [],
+            "body": null,
+            "created_date": "2025-11-29T07:21:02Z",
+            "description": "TeraSpot Backend API",
+            "disable_execute_api_endpoint": false,
+            "endpoint_configuration": [
+              {
+                "ip_address_type": "ipv4",
+                "types": [
+                  "EDGE"
+                ],
+                "vpc_endpoint_ids": []
+              }
+            ],
+            "execution_arn": "arn:aws:execute-api:us-east-1:755453699050:7omj4x5pbg",
+            "fail_on_warnings": null,
+            "id": "7omj4x5pbg",
+            "minimum_compression_size": "",
+            "name": "teraspot-api",
+            "parameters": null,
+            "policy": "",
+            "put_rest_api_mode": null,
+            "region": "us-east-1",
+            "root_resource_id": "0qids3wwjj",
+            "tags": {},
+            "tags_all": {}
+          },
+          "sensitive_attributes": [],
+          "identity_schema_version": 0,
+          "private": "bnVsbA==",
+          "create_before_destroy": true
+        }
+      ]
+    },
+    {
+      "mode": "managed",
+      "type": "aws_api_gateway_stage",
+      "name": "dev_stage",
+      "provider": "provider[\"registry.terraform.io/hashicorp/aws\"]",
+      "instances": [
+        {
+          "schema_version": 0,
+          "attributes": {
+            "access_log_settings": [],
+            "arn": "arn:aws:apigateway:us-east-1::/restapis/7omj4x5pbg/stages/dev",
+            "cache_cluster_enabled": false,
+            "cache_cluster_size": "",
+            "canary_settings": [],
+            "client_certificate_id": "",
+            "deployment_id": "uunvih",
+            "description": "",
+            "documentation_version": "",
+            "execution_arn": "arn:aws:execute-api:us-east-1:755453699050:7omj4x5pbg/dev",
+            "id": "ags-7omj4x5pbg-dev",
+            "invoke_url": "https://7omj4x5pbg.execute-api.us-east-1.amazonaws.com/dev",
+            "region": "us-east-1",
+            "rest_api_id": "7omj4x5pbg",
+            "stage_name": "dev",
+            "tags": {},
+            "tags_all": {},
+            "variables": {},
+            "web_acl_arn": "",
+            "xray_tracing_enabled": false
+          },
+          "sensitive_attributes": [],
+          "identity_schema_version": 0,
+          "private": "bnVsbA==",
+          "dependencies": [
+            "aws_api_gateway_deployment.deployment",
+            "aws_api_gateway_integration.lambda_integration",
+            "aws_api_gateway_method.post_config",
+            "aws_api_gateway_resource.config_resource",
+            "aws_api_gateway_rest_api.api",
+            "aws_iam_role.lambda_role",
+            "aws_lambda_function.config_saver",
+            "aws_s3_bucket.config_bucket",
+            "data.archive_file.lambda_zip"
+          ]
+        }
+      ]
+    },
+    {
+      "mode": "managed",
+      "type": "aws_iam_role",
+      "name": "device_command_role",
+      "provider": "provider[\"registry.terraform.io/hashicorp/aws\"]",
+      "instances": [
+        {
+          "schema_version": 0,
+          "attributes": {
+            "arn": "arn:aws:iam::755453699050:role/teraspot_device_command_role",
+            "assume_role_policy": "{\"Statement\":[{\"Action\":\"sts:AssumeRole\",\"Effect\":\"Allow\",\"Principal\":{\"Service\":\"lambda.amazonaws.com\"}}],\"Version\":\"2012-10-17\"}",
+            "create_date": "2025-11-29T07:21:02Z",
+            "description": "",
+            "force_detach_policies": false,
+            "id": "teraspot_device_command_role",
+            "inline_policy": [
+              {
+                "name": "teraspot_device_command_policy",
+                "policy": "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Action\":[\"logs:CreateLogGroup\",\"logs:CreateLogStream\",\"logs:PutLogEvents\"],\"Effect\":\"Allow\",\"Resource\":\"arn:aws:logs:*:*:*\"},{\"Action\":[\"iot:Publish\"],\"Effect\":\"Allow\",\"Resource\":\"*\"},{\"Action\":[\"s3:PutObject\",\"s3:GetObject\"],\"Effect\":\"Allow\",\"Resource\":[\"arn:aws:s3:::teraspot-config-dev/screenshots/*\"]}]}"
+              }
+            ],
+            "managed_policy_arns": [],
+            "max_session_duration": 3600,
+            "name": "teraspot_device_command_role",
+            "name_prefix": "",
+            "path": "/",
+            "permissions_boundary": "",
+            "tags": {},
+            "tags_all": {},
+            "unique_id": "AROA27ZEMUPVEDOPKHMJT"
+          },
+          "sensitive_attributes": [],
+          "identity_schema_version": 0,
+          "identity": {
+            "account_id": "755453699050",
+            "name": "teraspot_device_command_role"
+          },
+          "private": "bnVsbA=="
+        }
+      ]
+    },
+    {
+      "mode": "managed",
+      "type": "aws_iam_role",
+      "name": "lambda_role",
+      "provider": "provider[\"registry.terraform.io/hashicorp/aws\"]",
+      "instances": [
+        {
+          "schema_version": 0,
+          "attributes": {
+            "arn": "arn:aws:iam::755453699050:role/teraspot-config-saver_role",
+            "assume_role_policy": "{\"Statement\":[{\"Action\":\"sts:AssumeRole\",\"Effect\":\"Allow\",\"Principal\":{\"Service\":\"lambda.amazonaws.com\"}}],\"Version\":\"2012-10-17\"}",
+            "create_date": "2025-11-24T17:11:04Z",
+            "description": "",
+            "force_detach_policies": false,
+            "id": "teraspot-config-saver_role",
+            "inline_policy": [
+              {
+                "name": "teraspot-config-saver_policy",
+                "policy": "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Action\":[\"logs:CreateLogGroup\",\"logs:CreateLogStream\",\"logs:PutLogEvents\"],\"Effect\":\"Allow\",\"Resource\":\"arn:aws:logs:*:*:*\"},{\"Action\":[\"s3:PutObject\",\"s3:GetObject\",\"s3:DeleteObject\",\"s3:ListBucket\"],\"Effect\":\"Allow\",\"Resource\":[\"arn:aws:s3:::teraspot-config-dev\",\"arn:aws:s3:::teraspot-config-dev/*\"]}]}"
+              }
+            ],
+            "managed_policy_arns": [],
+            "max_session_duration": 3600,
+            "name": "teraspot-config-saver_role",
+            "name_prefix": "",
+            "path": "/",
+            "permissions_boundary": "",
+            "tags": {},
+            "tags_all": {},
+            "unique_id": "AROA27ZEMUPVJXAHPHJZJ"
+          },
+          "sensitive_attributes": [],
+          "identity_schema_version": 0,
+          "identity": {
+            "account_id": "755453699050",
+            "name": "teraspot-config-saver_role"
+          },
+          "private": "eyJzY2hlbWFfdmVyc2lvbiI6IjAifQ==",
+          "create_before_destroy": true
+        }
+      ]
+    },
+    {
+      "mode": "managed",
+      "type": "aws_iam_role",
+      "name": "read_status_role",
+      "provider": "provider[\"registry.terraform.io/hashicorp/aws\"]",
+      "instances": [
+        {
+          "schema_version": 0,
+          "attributes": {
+            "arn": "arn:aws:iam::755453699050:role/teraspot_read_status_role",
+            "assume_role_policy": "{\"Statement\":[{\"Action\":\"sts:AssumeRole\",\"Effect\":\"Allow\",\"Principal\":{\"Service\":\"lambda.amazonaws.com\"}}],\"Version\":\"2012-10-17\"}",
+            "create_date": "2025-11-29T10:31:58Z",
+            "description": "",
+            "force_detach_policies": false,
+            "id": "teraspot_read_status_role",
+            "inline_policy": [
+              {
+                "name": "teraspot_read_status_policy",
+                "policy": "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Action\":[\"logs:CreateLogGroup\",\"logs:CreateLogStream\",\"logs:PutLogEvents\"],\"Effect\":\"Allow\",\"Resource\":\"arn:aws:logs:*:*:*\"},{\"Action\":[\"dynamodb:GetItem\",\"dynamodb:Scan\",\"dynamodb:Query\"],\"Effect\":\"Allow\",\"Resource\":\"arn:aws:dynamodb:us-east-1:755453699050:table/parking-spaces-dev\"}]}"
+              }
+            ],
+            "managed_policy_arns": [],
+            "max_session_duration": 3600,
+            "name": "teraspot_read_status_role",
+            "name_prefix": "",
+            "path": "/",
+            "permissions_boundary": "",
+            "tags": {},
+            "tags_all": {},
+            "unique_id": "AROA27ZEMUPVC7PCGVJVA"
+          },
+          "sensitive_attributes": [],
+          "identity_schema_version": 0,
+          "identity": {
+            "account_id": "755453699050",
+            "name": "teraspot_read_status_role"
+          },
+          "private": "bnVsbA=="
+        }
+      ]
+    },
+    {
+      "mode": "managed",
+      "type": "aws_iam_role_policy",
+      "name": "device_command_policy",
+      "provider": "provider[\"registry.terraform.io/hashicorp/aws\"]",
+      "instances": [
+        {
+          "schema_version": 0,
+          "attributes": {
+            "id": "teraspot_device_command_role:teraspot_device_command_policy",
+            "name": "teraspot_device_command_policy",
+            "name_prefix": "",
+            "policy": "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Action\":[\"logs:CreateLogGroup\",\"logs:CreateLogStream\",\"logs:PutLogEvents\"],\"Effect\":\"Allow\",\"Resource\":\"arn:aws:logs:*:*:*\"},{\"Action\":[\"iot:Publish\"],\"Effect\":\"Allow\",\"Resource\":\"*\"},{\"Action\":[\"s3:PutObject\",\"s3:GetObject\"],\"Effect\":\"Allow\",\"Resource\":[\"arn:aws:s3:::teraspot-config-dev/screenshots/*\"]}]}",
+            "role": "teraspot_device_command_role"
+          },
+          "sensitive_attributes": [],
+          "identity_schema_version": 0,
+          "identity": {
+            "account_id": "755453699050",
+            "name": "teraspot_device_command_policy",
+            "role": "teraspot_device_command_role"
+          },
+          "private": "bnVsbA==",
+          "dependencies": [
+            "aws_iam_role.device_command_role",
+            "aws_s3_bucket.config_bucket"
+          ]
+        }
+      ]
+    },
+    {
+      "mode": "managed",
+      "type": "aws_iam_role_policy",
+      "name": "lambda_policy",
+      "provider": "provider[\"registry.terraform.io/hashicorp/aws\"]",
+      "instances": [
+        {
+          "schema_version": 0,
+          "attributes": {
+            "id": "teraspot-config-saver_role:teraspot-config-saver_policy",
+            "name": "teraspot-config-saver_policy",
+            "name_prefix": "",
+            "policy": "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Action\":[\"logs:CreateLogGroup\",\"logs:CreateLogStream\",\"logs:PutLogEvents\"],\"Effect\":\"Allow\",\"Resource\":\"arn:aws:logs:*:*:*\"},{\"Action\":[\"s3:PutObject\",\"s3:GetObject\",\"s3:DeleteObject\",\"s3:ListBucket\"],\"Effect\":\"Allow\",\"Resource\":[\"arn:aws:s3:::teraspot-config-dev\",\"arn:aws:s3:::teraspot-config-dev/*\"]}]}",
+            "role": "teraspot-config-saver_role"
+          },
+          "sensitive_attributes": [],
+          "identity_schema_version": 0,
+          "identity": {
+            "account_id": "755453699050",
+            "name": "teraspot-config-saver_policy",
+            "role": "teraspot-config-saver_role"
+          },
+          "private": "bnVsbA==",
+          "dependencies": [
+            "aws_iam_role.lambda_role",
+            "aws_s3_bucket.config_bucket"
+          ]
+        }
+      ]
+    },
+    {
+      "mode": "managed",
+      "type": "aws_iam_role_policy",
+      "name": "read_status_policy",
+      "provider": "provider[\"registry.terraform.io/hashicorp/aws\"]",
+      "instances": [
+        {
+          "schema_version": 0,
+          "attributes": {
+            "id": "teraspot_read_status_role:teraspot_read_status_policy",
+            "name": "teraspot_read_status_policy",
+            "name_prefix": "",
+            "policy": "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Action\":[\"logs:CreateLogGroup\",\"logs:CreateLogStream\",\"logs:PutLogEvents\"],\"Effect\":\"Allow\",\"Resource\":\"arn:aws:logs:*:*:*\"},{\"Action\":[\"dynamodb:GetItem\",\"dynamodb:Scan\",\"dynamodb:Query\"],\"Effect\":\"Allow\",\"Resource\":\"arn:aws:dynamodb:us-east-1:755453699050:table/parking-spaces-dev\"}]}",
+            "role": "teraspot_read_status_role"
+          },
+          "sensitive_attributes": [],
+          "identity_schema_version": 0,
+          "identity": {
+            "account_id": "755453699050",
+            "name": "teraspot_read_status_policy",
+            "role": "teraspot_read_status_role"
+          },
+          "private": "bnVsbA==",
+          "dependencies": [
+            "aws_iam_role.read_status_role",
+            "data.aws_caller_identity.current"
+          ]
+        }
+      ]
+    },
+    {
+      "mode": "managed",
+      "type": "aws_lambda_function",
+      "name": "config_saver",
+      "provider": "provider[\"registry.terraform.io/hashicorp/aws\"]",
+      "instances": [
+        {
+          "schema_version": 0,
+          "attributes": {
+            "architectures": [
+              "x86_64"
+            ],
+            "arn": "arn:aws:lambda:us-east-1:755453699050:function:teraspot-config-saver",
+            "code_sha256": "MmZnqTDsNuyzq+ASQj3+Ixyw8khEa7E+eGmP4cA+LyY=",
+            "code_signing_config_arn": "",
+            "dead_letter_config": [],
+            "description": "",
+            "environment": [
+              {
+                "variables": {
+                  "CONFIG_BUCKET_NAME": "teraspot-config-dev"
+                }
+              }
+            ],
+            "ephemeral_storage": [
+              {
+                "size": 512
+              }
+            ],
+            "file_system_config": [],
+            "filename": "./lambda_function.zip",
+            "function_name": "teraspot-config-saver",
+            "handler": "lambda_function.lambda_handler",
+            "id": "teraspot-config-saver",
+            "image_config": [],
+            "image_uri": "",
+            "invoke_arn": "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:755453699050:function:teraspot-config-saver/invocations",
+            "kms_key_arn": "",
+            "last_modified": "2025-11-29T10:04:19.000+0000",
+            "layers": [],
+            "logging_config": [
+              {
+                "application_log_level": "",
+                "log_format": "Text",
+                "log_group": "/aws/lambda/teraspot-config-saver",
+                "system_log_level": ""
+              }
+            ],
+            "memory_size": 128,
+            "package_type": "Zip",
+            "publish": false,
+            "qualified_arn": "arn:aws:lambda:us-east-1:755453699050:function:teraspot-config-saver:$LATEST",
+            "qualified_invoke_arn": "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:755453699050:function:teraspot-config-saver:$LATEST/invocations",
+            "region": "us-east-1",
+            "replace_security_groups_on_destroy": null,
+            "replacement_security_group_ids": null,
+            "reserved_concurrent_executions": -1,
+            "role": "arn:aws:iam::755453699050:role/teraspot-config-saver_role",
+            "runtime": "python3.13",
+            "s3_bucket": null,
+            "s3_key": null,
+            "s3_object_version": null,
+            "signing_job_arn": "",
+            "signing_profile_version_arn": "",
+            "skip_destroy": false,
+            "snap_start": [],
+            "source_code_hash": "MmZnqTDsNuyzq+ASQj3+Ixyw8khEa7E+eGmP4cA+LyY=",
+            "source_code_size": 2818,
+            "source_kms_key_arn": "",
+            "tags": {},
+            "tags_all": {},
+            "timeout": 10,
+            "timeouts": null,
+            "tracing_config": [
+              {
+                "mode": "PassThrough"
+              }
+            ],
+            "version": "$LATEST",
+            "vpc_config": []
+          },
+          "sensitive_attributes": [],
+          "identity_schema_version": 0,
+          "identity": {
+            "account_id": "755453699050",
+            "function_name": "teraspot-config-saver",
+            "region": "us-east-1"
+          },
+          "private": "eyJlMmJmYjczMC1lY2FhLTExZTYtOGY4OC0zNDM2M2JjN2M0YzAiOnsiY3JlYXRlIjo2MDAwMDAwMDAwMDAsImRlbGV0ZSI6NjAwMDAwMDAwMDAwLCJ1cGRhdGUiOjYwMDAwMDAwMDAwMH19",
+          "dependencies": [
+            "aws_iam_role.lambda_role",
+            "aws_s3_bucket.config_bucket",
+            "data.archive_file.lambda_zip"
+          ],
+          "create_before_destroy": true
+        }
+      ]
+    },
+    {
+      "mode": "managed",
+      "type": "aws_lambda_function",
+      "name": "device_command",
+      "provider": "provider[\"registry.terraform.io/hashicorp/aws\"]",
+      "instances": [
+        {
+          "schema_version": 0,
+          "attributes": {
+            "architectures": [
+              "x86_64"
+            ],
+            "arn": "arn:aws:lambda:us-east-1:755453699050:function:teraspot-device-command",
+            "code_sha256": "hOx9SnSVy3aTi1X15jxKD+oy1oivSfXNqYYmkT1XObs=",
+            "code_signing_config_arn": "",
+            "dead_letter_config": [],
+            "description": "",
+            "environment": [
+              {
+                "variables": {
+                  "IOT_ENDPOINT": "a32ispy3av5kmv-ats.iot.us-east-1.amazonaws.com",
+                  "SCREENSHOT_BUCKET": "teraspot-config-dev"
+                }
+              }
+            ],
+            "ephemeral_storage": [
+              {
+                "size": 512
+              }
+            ],
+            "file_system_config": [],
+            "filename": "./device_command.zip",
+            "function_name": "teraspot-device-command",
+            "handler": "lambda_function.lambda_handler",
+            "id": "teraspot-device-command",
+            "image_config": [],
+            "image_uri": "",
+            "invoke_arn": "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:755453699050:function:teraspot-device-command/invocations",
+            "kms_key_arn": "",
+            "last_modified": "2025-11-29T09:47:57.000+0000",
+            "layers": [],
+            "logging_config": [
+              {
+                "application_log_level": "",
+                "log_format": "Text",
+                "log_group": "/aws/lambda/teraspot-device-command",
+                "system_log_level": ""
+              }
+            ],
+            "memory_size": 128,
+            "package_type": "Zip",
+            "publish": false,
+            "qualified_arn": "arn:aws:lambda:us-east-1:755453699050:function:teraspot-device-command:$LATEST",
+            "qualified_invoke_arn": "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:755453699050:function:teraspot-device-command:$LATEST/invocations",
+            "region": "us-east-1",
+            "replace_security_groups_on_destroy": null,
+            "replacement_security_group_ids": null,
+            "reserved_concurrent_executions": -1,
+            "role": "arn:aws:iam::755453699050:role/teraspot_device_command_role",
+            "runtime": "python3.13",
+            "s3_bucket": null,
+            "s3_key": null,
+            "s3_object_version": null,
+            "signing_job_arn": "",
+            "signing_profile_version_arn": "",
+            "skip_destroy": false,
+            "snap_start": [],
+            "source_code_hash": "hOx9SnSVy3aTi1X15jxKD+oy1oivSfXNqYYmkT1XObs=",
+            "source_code_size": 1414,
+            "source_kms_key_arn": "",
+            "tags": {},
+            "tags_all": {},
+            "timeout": 10,
+            "timeouts": null,
+            "tracing_config": [
+              {
+                "mode": "PassThrough"
+              }
+            ],
+            "version": "$LATEST",
+            "vpc_config": []
+          },
+          "sensitive_attributes": [],
+          "identity_schema_version": 0,
+          "identity": {
+            "account_id": "755453699050",
+            "function_name": "teraspot-device-command",
+            "region": "us-east-1"
+          },
+          "private": "eyJlMmJmYjczMC1lY2FhLTExZTYtOGY4OC0zNDM2M2JjN2M0YzAiOnsiY3JlYXRlIjo2MDAwMDAwMDAwMDAsImRlbGV0ZSI6NjAwMDAwMDAwMDAwLCJ1cGRhdGUiOjYwMDAwMDAwMDAwMH19",
+          "dependencies": [
+            "aws_iam_role.device_command_role",
+            "aws_s3_bucket.config_bucket",
+            "data.archive_file.device_command_zip"
+          ]
+        }
+      ]
+    },
+    {
+      "mode": "managed",
+      "type": "aws_lambda_function",
+      "name": "read_status",
+      "provider": "provider[\"registry.terraform.io/hashicorp/aws\"]",
+      "instances": [
+        {
+          "schema_version": 0,
+          "attributes": {
+            "architectures": [
+              "x86_64"
+            ],
+            "arn": "arn:aws:lambda:us-east-1:755453699050:function:teraspot-read-status",
+            "code_sha256": "0JR1q4zmquFUycFGDo6p8BRGMpQL7uZaZkLSE7a1TIs=",
+            "code_signing_config_arn": "",
+            "dead_letter_config": [],
+            "description": "",
+            "environment": [],
+            "ephemeral_storage": [
+              {
+                "size": 512
+              }
+            ],
+            "file_system_config": [],
+            "filename": null,
+            "function_name": "teraspot-read-status",
+            "handler": "lambda_function.lambda_handler",
+            "id": "teraspot-read-status",
+            "image_config": [],
+            "image_uri": "",
+            "invoke_arn": "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:755453699050:function:teraspot-read-status/invocations",
+            "kms_key_arn": "",
+            "last_modified": "2025-11-24T02:58:51.000+0000",
+            "layers": [],
+            "logging_config": [
+              {
+                "application_log_level": "",
+                "log_format": "Text",
+                "log_group": "/aws/lambda/teraspot-read-status",
+                "system_log_level": ""
+              }
+            ],
+            "memory_size": 128,
+            "package_type": "Zip",
+            "publish": null,
+            "qualified_arn": "arn:aws:lambda:us-east-1:755453699050:function:teraspot-read-status:$LATEST",
+            "qualified_invoke_arn": "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:755453699050:function:teraspot-read-status:$LATEST/invocations",
+            "region": "us-east-1",
+            "replace_security_groups_on_destroy": null,
+            "replacement_security_group_ids": null,
+            "reserved_concurrent_executions": -1,
+            "role": "arn:aws:iam::755453699050:role/service-role/teraspot-read-status-role-6lhbad58",
+            "runtime": "python3.12",
+            "s3_bucket": null,
+            "s3_key": null,
+            "s3_object_version": null,
+            "signing_job_arn": "",
+            "signing_profile_version_arn": "",
+            "skip_destroy": false,
+            "snap_start": [],
+            "source_code_hash": "",
+            "source_code_size": 13085838,
+            "source_kms_key_arn": "",
+            "tags": {},
+            "tags_all": {},
+            "timeout": 3,
+            "timeouts": null,
+            "tracing_config": [
+              {
+                "mode": "PassThrough"
+              }
+            ],
+            "version": "$LATEST",
+            "vpc_config": []
+          },
+          "sensitive_attributes": [],
+          "identity_schema_version": 0,
+          "identity": {
+            "account_id": "755453699050",
+            "function_name": "teraspot-read-status",
+            "region": "us-east-1"
+          },
+          "private": "eyJlMmJmYjczMC1lY2FhLTExZTYtOGY4OC0zNDM2M2JjN2M0YzAiOnsiY3JlYXRlIjo2MDAwMDAwMDAwMDAsImRlbGV0ZSI6NjAwMDAwMDAwMDAwLCJ1cGRhdGUiOjYwMDAwMDAwMDAwMH0sInNjaGVtYV92ZXJzaW9uIjoiMCJ9"
+        }
+      ]
+    },
+    {
+      "mode": "managed",
+      "type": "aws_lambda_permission",
+      "name": "apigw_lambda",
+      "provider": "provider[\"registry.terraform.io/hashicorp/aws\"]",
+      "instances": [
+        {
+          "schema_version": 0,
+          "attributes": {
+            "action": "lambda:InvokeFunction",
+            "event_source_token": null,
+            "function_name": "teraspot-config-saver",
+            "function_url_auth_type": null,
+            "id": "AllowExecutionFromAPIGateway",
+            "principal": "apigateway.amazonaws.com",
+            "principal_org_id": null,
+            "qualifier": "",
+            "region": "us-east-1",
+            "source_account": null,
+            "source_arn": "arn:aws:execute-api:us-east-1:755453699050:7omj4x5pbg/*/*",
+            "statement_id": "AllowExecutionFromAPIGateway",
+            "statement_id_prefix": ""
+          },
+          "sensitive_attributes": [],
+          "identity_schema_version": 0,
+          "identity": {
+            "account_id": "755453699050",
+            "function_name": "teraspot-config-saver",
+            "qualifier": null,
+            "region": "us-east-1",
+            "statement_id": "AllowExecutionFromAPIGateway"
+          },
+          "private": "bnVsbA==",
+          "dependencies": [
+            "aws_api_gateway_rest_api.api",
+            "aws_iam_role.lambda_role",
+            "aws_lambda_function.config_saver",
+            "aws_s3_bucket.config_bucket",
+            "data.archive_file.lambda_zip"
+          ]
+        }
+      ]
+    },
+    {
+      "mode": "managed",
+      "type": "aws_s3_bucket",
+      "name": "config_bucket",
+      "provider": "provider[\"registry.terraform.io/hashicorp/aws\"]",
+      "instances": [
+        {
+          "schema_version": 0,
+          "attributes": {
+            "acceleration_status": "",
+            "acl": null,
+            "arn": "arn:aws:s3:::teraspot-config-dev",
+            "bucket": "teraspot-config-dev",
+            "bucket_domain_name": "teraspot-config-dev.s3.amazonaws.com",
+            "bucket_prefix": "",
+            "bucket_region": "us-east-1",
+            "bucket_regional_domain_name": "teraspot-config-dev.s3.us-east-1.amazonaws.com",
+            "cors_rule": [],
+            "force_destroy": true,
+            "grant": [
+              {
+                "id": "458fee78af203732ab5fa7e213632fc958806d0dcd282650c1ce81c4ed9aa59e",
+                "permissions": [
+                  "FULL_CONTROL"
+                ],
+                "type": "CanonicalUser",
+                "uri": ""
+              }
+            ],
+            "hosted_zone_id": "Z3AQBSTGFYJSTF",
+            "id": "teraspot-config-dev",
+            "lifecycle_rule": [],
+            "logging": [],
+            "object_lock_configuration": [],
+            "object_lock_enabled": false,
+            "policy": "",
+            "region": "us-east-1",
+            "replication_configuration": [],
+            "request_payer": "BucketOwner",
+            "server_side_encryption_configuration": [
+              {
+                "rule": [
+                  {
+                    "apply_server_side_encryption_by_default": [
+                      {
+                        "kms_master_key_id": "",
+                        "sse_algorithm": "AES256"
+                      }
+                    ],
+                    "bucket_key_enabled": false
+                  }
+                ]
+              }
+            ],
+            "tags": {
+              "Environment": "dev",
+              "Name": "TeraSpot Config Bucket"
+            },
+            "tags_all": {
+              "Environment": "dev",
+              "Name": "TeraSpot Config Bucket"
+            },
+            "timeouts": null,
+            "versioning": [
+              {
+                "enabled": false,
+                "mfa_delete": false
+              }
+            ],
+            "website": [],
+            "website_domain": null,
+            "website_endpoint": null
+          },
+          "sensitive_attributes": [],
+          "identity_schema_version": 0,
+          "identity": {
+            "account_id": "755453699050",
+            "bucket": "teraspot-config-dev",
+            "region": "us-east-1"
+          },
+          "private": "eyJlMmJmYjczMC1lY2FhLTExZTYtOGY4OC0zNDM2M2JjN2M0YzAiOnsiY3JlYXRlIjoxMjAwMDAwMDAwMDAwLCJkZWxldGUiOjM2MDAwMDAwMDAwMDAsInJlYWQiOjEyMDAwMDAwMDAwMDAsInVwZGF0ZSI6MTIwMDAwMDAwMDAwMH19",
+          "create_before_destroy": true
+        }
+      ]
+    }
+  ],
+  "check_results": null
+}
