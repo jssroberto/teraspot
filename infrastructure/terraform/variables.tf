@@ -21,3 +21,8 @@ variable "environment" {
   type        = string
   default     = "dev"
 }
+
+variable "iot_endpoint" {
+  description = "AWS IoT Core Endpoint"
+  type        = string
+}

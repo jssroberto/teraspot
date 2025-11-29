@@ -6,6 +6,8 @@ import os
 import sys
 from typing import List, Optional
 
+from dotenv import load_dotenv
+
 import boto3
 from botocore.exceptions import BotoCoreError, ClientError
 
@@ -15,7 +17,15 @@ logger = logging.getLogger(__name__)
 
 def load_config_from_env():
     """Load configuration from environment variables with validation."""
+    # Load .env from fog/ directory (parent of src/)
+    fog_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    env_path = os.path.join(fog_dir, ".env")
+    load_dotenv(env_path)
+
     base_cert_path = os.getenv("AWS_IOT_CERT_PATH", "./certs")
+    if not os.path.isabs(base_cert_path):
+        base_cert_path = os.path.join(fog_dir, base_cert_path)
+
     facility_id = os.getenv("AWS_IOT_FACILITY_ID")
     zone_id = os.getenv("AWS_IOT_ZONE_ID")
 

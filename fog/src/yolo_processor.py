@@ -62,6 +62,16 @@ class YOLOProcessor:
         self.source_type = "image"
         self.frame_skip = max(frame_skip, 0)
         self._roi_spaces: Dict[str, ParkingSpaceROI] = {}
+        self.last_frame = None
+
+    def get_current_frame(self):
+        """Returns the last processed frame encoded as JPEG bytes."""
+        if self.last_frame is None:
+            return None
+        success, encoded_image = cv2.imencode(".jpg", self.last_frame)
+        if not success:
+            return None
+        return encoded_image.tobytes()
 
     def set_roi_spaces(self, spaces_config: List[Dict[str, object]]):
         """Validate and store ROI polygons for parking spaces."""
@@ -185,7 +195,9 @@ class YOLOProcessor:
                 img_path = image_path or self.image_path
                 if not img_path:
                     raise ValueError("No image path provided")
-                inference_source = img_path
+                inference_source = cv2.imread(img_path) # Read image to store it
+            
+            self.last_frame = inference_source
 
             try:
                 # Run YOLO inference

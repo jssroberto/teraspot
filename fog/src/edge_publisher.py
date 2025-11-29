@@ -9,7 +9,10 @@ import argparse
 import logging
 import sys
 import time
+import json
+import requests
 
+from awscrt import mqtt
 from awsiot import mqtt_connection_builder
 from config_utils import load_config_from_env, resolve_roi_spaces
 from publisher_utils import (
@@ -199,6 +202,56 @@ def main():
         connect_future = mqtt_connection.connect()
         connect_future.result()
 
+        # Subscribe to commands
+        command_topic = f"teraspot/commands/{config['thing_name']}"
+        logger.info(f"Subscribing to commands on: {command_topic}")
+
+        def on_command_received(topic, payload, dup, qos, retain, **kwargs):
+            try:
+                message = json.loads(payload)
+                command = message.get("command")
+                logger.info(f"Received command: {command}")
+
+                if command == "screenshot":
+                    upload_url = message.get("upload_url")
+                    if not upload_url:
+                        logger.error("Screenshot command missing upload_url")
+                        return
+                    
+                    if yolo:
+                        frame_bytes = yolo.get_current_frame()
+                        if frame_bytes:
+                            logger.info("Uploading screenshot...")
+                            resp = requests.put(upload_url, data=frame_bytes, headers={"Content-Type": "image/jpeg"})
+                            if resp.status_code == 200:
+                                logger.info("Screenshot uploaded successfully")
+                            else:
+                                logger.error(f"Failed to upload screenshot: {resp.status_code} - {resp.text}")
+                        else:
+                            logger.warning("No frame available for screenshot")
+                    else:
+                        logger.warning("YOLO not enabled, cannot take screenshot")
+
+                elif command == "reload_config":
+                    logger.info("Reloading configuration...")
+                    # Reload ROI config
+                    new_roi_spaces = resolve_roi_spaces(args)
+                    if new_roi_spaces and yolo:
+                        yolo.set_roi_spaces(new_roi_spaces)
+                        logger.info("ROI configuration reloaded")
+                    elif not new_roi_spaces:
+                         logger.warning("Reload requested but no ROI config found")
+
+            except Exception as e:
+                logger.error(f"Error processing command: {e}")
+
+        subscribe_future, _ = mqtt_connection.subscribe(
+            topic=command_topic,
+            qos=mqtt.QoS.AT_LEAST_ONCE,
+            callback=on_command_received
+        )
+        subscribe_future.result()
+
         
         iteration = 0
         last_publish_time = 0
@@ -287,7 +340,7 @@ def main():
         mqtt_connection.disconnect()
 
     except Exception as e:
-        logger.error(f"\nERROR: {str(e)}")
+        logger.error(f"\nERROR: {repr(e)}")
         logger.error("=" * 60)
         sys.exit(1)
     finally:

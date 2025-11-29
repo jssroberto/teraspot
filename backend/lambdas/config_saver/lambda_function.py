@@ -49,6 +49,18 @@ def _validate_alert_rule(config: dict[str, Any]) -> tuple[bool, str]:
     return True, ""
 
 
+def _validate_roi(config: dict[str, Any]) -> tuple[bool, str]:
+    if "device_id" not in config:
+        return False, "roi must have 'device_id'"
+    spaces = config.get("value", {}).get("spaces")
+    if not isinstance(spaces, list):
+        return False, "roi value must have 'spaces' list"
+    for space in spaces:
+        if "space_id" not in space or "polygon" not in space:
+            return False, "each space must have 'space_id' and 'polygon'"
+    return True, ""
+
+
 def validate_config(config: dict[str, Any]) -> tuple[bool, str]:
     """
     Validates that the configuration meets the required schema.
@@ -60,7 +72,7 @@ def validate_config(config: dict[str, Any]) -> tuple[bool, str]:
             return False, f"Missing required field: {field}"
 
     # Valid types
-    valid_types = ["threshold", "zone", "device", "alert_rule"]
+    valid_types = ["threshold", "zone", "device", "alert_rule", "roi"]
     config_type = config.get("config_type")
     if config_type not in valid_types:
         return False, f"Invalid config_type. Must be one of: {valid_types}"
@@ -74,6 +86,8 @@ def validate_config(config: dict[str, Any]) -> tuple[bool, str]:
         return _validate_device(config)
     elif config_type == "alert_rule":
         return _validate_alert_rule(config)
+    elif config_type == "roi":
+        return _validate_roi(config)
 
     return True, ""
 
@@ -90,6 +104,8 @@ def _generate_config_id(config: dict[str, Any]) -> str:
         return f"threshold-{config['threshold_id']}"
     elif config_type == "alert_rule":
         return f"alert-{config['rule_id']}"
+    elif config_type == "roi":
+        return f"roi-{config['device_id']}"
 
     return ""
 
