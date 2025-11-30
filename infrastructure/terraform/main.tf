@@ -99,6 +99,53 @@ resource "aws_lambda_function" "config_saver" {
 }
 
 # ==============================================================================
+# KPI Monitor - Lambda & API Gateway (POST)
+# ==============================================================================
+
+data "archive_file" "kpi_monitor_zip" {
+  type        = "zip"
+  source_dir  = "${path.module}/../../backend/lambdas/kpi_monitor"
+  output_path = "${path.module}/kpi_monitor.zip"
+}
+
+resource "aws_iam_role" "kpi_monitor_role" {
+  name = "teraspot_kpi_monitor_role"
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17", Statement = [{ Action = "sts:AssumeRole", Effect = "Allow", Principal = { Service = "lambda.amazonaws.com" } }]
+  })
+}
+
+resource "aws_iam_role_policy" "kpi_monitor_policy" {
+  name = "teraspot_kpi_monitor_policy"
+  role = aws_iam_role.kpi_monitor_role.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      { Effect = "Allow", Action = ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"], Resource = "arn:aws:logs:*:*:*" },
+      { Effect = "Allow", Action = ["dynamodb:Scan", "dynamodb:Query", "dynamodb:GetItem"], Resource = "*" } # Ajusta Resource a tus tablas si prefieres más seguridad
+    ]
+  })
+}
+
+resource "aws_lambda_function" "kpi_monitor" {
+  filename         = data.archive_file.kpi_monitor_zip.output_path
+  function_name    = "teraspot-kpi-monitor"
+  role             = aws_iam_role.kpi_monitor_role.arn
+  handler          = "lambda_function.lambda_handler"
+  source_code_hash = data.archive_file.kpi_monitor_zip.output_base64sha256
+  runtime          = "python3.12"
+  timeout          = 30
+  environment {
+    variables = {
+      HISTORY_TABLE = "parking-history"
+      CURRENT_TABLE_NAME = "parking-spaces-dev"
+    }
+  }
+}
+
+
+
+# ==============================================================================
 # API Gateway
 # ==============================================================================
 resource "aws_api_gateway_rest_api" "api" {
@@ -263,6 +310,12 @@ resource "aws_api_gateway_resource" "device_id_resource" {
   path_part   = "{device_id}"
 }
 
+resource "aws_api_gateway_resource" "kpi_resource" {
+  rest_api_id = aws_api_gateway_rest_api.api.id
+  parent_id   = aws_api_gateway_rest_api.api.root_resource_id
+  path_part   = "kpi"
+}
+
 resource "aws_api_gateway_resource" "command_resource" {
   rest_api_id = aws_api_gateway_rest_api.api.id
   parent_id   = aws_api_gateway_resource.device_id_resource.id
@@ -274,6 +327,31 @@ resource "aws_api_gateway_method" "post_command" {
   resource_id   = aws_api_gateway_resource.command_resource.id
   http_method   = "POST"
   authorization = "NONE"
+}
+
+#Route for  kpi endpoint
+resource "aws_api_gateway_method" "post_kpi" {
+  rest_api_id   = aws_api_gateway_rest_api.api.id
+  resource_id   = aws_api_gateway_resource.kpi_resource.id
+  http_method   = "POST"  
+  authorization = "NONE"
+}
+
+resource "aws_api_gateway_integration" "kpi_integration" {
+  rest_api_id             = aws_api_gateway_rest_api.api.id
+  resource_id             = aws_api_gateway_resource.kpi_resource.id
+  http_method             = aws_api_gateway_method.post_kpi.http_method
+  integration_http_method = "POST" # AWS requiere POST interno para invocar
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.kpi_monitor.invoke_arn
+}
+
+resource "aws_lambda_permission" "apigw_kpi_lambda" {
+  statement_id  = "AllowExecutionFromAPIGatewayKPI"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.kpi_monitor.function_name
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${aws_api_gateway_rest_api.api.execution_arn}/*/*"
 }
 
 resource "aws_api_gateway_integration" "command_integration" {

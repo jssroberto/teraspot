@@ -1,114 +1,149 @@
-import { Image } from "expo-image";
-import { Platform, StyleSheet } from "react-native";
-
-import { HelloWave } from "@/components/hello-wave";
-import ParallaxScrollView from "@/components/parallax-scroll-view";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
-import { API_URL } from "@repo/core";
-import { Button } from "@repo/ui";
-import { Link } from "expo-router";
+import { deleteDevice, Device, getDevices } from "@repo/core";
+import { useRouter } from "expo-router";
+import React, { useEffect, useState } from "react";
+import {
+  Alert,
+  FlatList,
+  RefreshControl,
+  Button as RNButton,
+  StyleSheet,
+  View,
+} from "react-native";
 
-export default function HomeScreen() {
-  return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: "#A1CEDC", dark: "#1D3D47" }}
-      headerImage={
-        <Image
-          source={require("@/assets/images/partial-react-logo.png")}
-          style={styles.reactLogo}
+export default function DashboardScreen() {
+  const [devices, setDevices] = useState<Device[]>([]);
+  const [refreshing, setRefreshing] = useState(false);
+  const router = useRouter();
+
+  const handleDelete = (deviceId: string) => {
+    Alert.alert(
+      "Delete Device",
+      "Are you sure you want to delete this device?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await deleteDevice(deviceId);
+              fetchDevices();
+            } catch {
+              Alert.alert("Error", "Failed to delete device");
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const fetchDevices = async () => {
+    setRefreshing(true);
+    try {
+      const deviceList = await getDevices();
+      setDevices(deviceList);
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchDevices();
+  }, []);
+
+  const renderItem = ({ item }: { item: Device }) => (
+    <ThemedView style={styles.card}>
+      <View style={styles.cardHeader}>
+        <ThemedText type="subtitle">
+          {item.value.name || "Unnamed Device"}
+        </ThemedText>
+        <ThemedText>{item.value.device_id}</ThemedText>
+      </View>
+      <ThemedText>IP: {item.value.ip}</ThemedText>
+      <ThemedText>Source: {item.value.video_source}</ThemedText>
+
+      <View style={styles.buttonContainer}>
+        <RNButton
+          title="Manage / ROI"
+          onPress={() => router.push(`/editor/${item.value.device_id}` as any)}
         />
-      }
-    >
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Smoke Test</ThemedText>
-        <Button appName="Admin">I am from @repo/ui</Button>
-        <ThemedText>Config from Core: {API_URL}</ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit{" "}
-          <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText>{" "}
-          to see changes. Press{" "}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: "cmd + d",
-              android: "cmd + m",
-              web: "F12",
-            })}
-          </ThemedText>{" "}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction
-              title="Action"
-              icon="cube"
-              onPress={() => alert("Action pressed")}
-            />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert("Share pressed")}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert("Delete pressed")}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+        <View style={{ height: 10 }} />
+        <RNButton
+          title="Delete"
+          color="red"
+          onPress={() => handleDelete(item.value.device_id)}
+        />
+      </View>
+    </ThemedView>
+  );
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">
-            npm run reset-project
-          </ThemedText>{" "}
-          to get a fresh <ThemedText type="defaultSemiBold">app</ThemedText>{" "}
-          directory. This will move the current{" "}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{" "}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+  return (
+    <ThemedView style={styles.container}>
+      <View style={styles.header}>
+        <ThemedText type="title">Edge Processors</ThemedText>
+        {/* TODO: Add Device Screen implementation */}
+        <RNButton
+          title="Add Device"
+          onPress={() =>
+            Alert.alert("Not Implemented", "Add Device screen not migrated yet")
+          }
+        />
+      </View>
+
+      <FlatList
+        data={devices}
+        renderItem={renderItem}
+        keyExtractor={(item) => item.config_id}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={fetchDevices} />
+        }
+        ListEmptyComponent={
+          <ThemedText style={styles.emptyText}>
+            No devices found. Add one to get started.
+          </ThemedText>
+        }
+        contentContainerStyle={styles.listContent}
+      />
+    </ThemedView>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
+  container: {
+    flex: 1,
+    padding: 20,
+  },
+  header: {
     flexDirection: "row",
+    justifyContent: "space-between",
     alignItems: "center",
-    gap: 8,
+    marginBottom: 20,
+    marginTop: 40, // Safe area
   },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
+  card: {
+    padding: 15,
+    borderRadius: 10,
+    marginBottom: 15,
+    borderWidth: 1,
+    borderColor: "#ccc",
   },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: "absolute",
+  cardHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 10,
+  },
+  buttonContainer: {
+    marginTop: 10,
+  },
+  emptyText: {
+    textAlign: "center",
+    marginTop: 50,
+  },
+  listContent: {
+    paddingBottom: 20,
   },
 });
