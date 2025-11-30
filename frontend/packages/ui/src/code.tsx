@@ -1,4 +1,5 @@
 import { type JSX } from "react";
+import { Platform, StyleSheet, Text } from "react-native";
 
 export function Code({
   children,
@@ -7,5 +8,19 @@ export function Code({
   children: React.ReactNode;
   className?: string;
 }): JSX.Element {
-  return <code className={className}>{children}</code>;
+  return <Text style={styles.code}>{children}</Text>;
 }
+
+const styles = StyleSheet.create({
+  code: {
+    fontFamily: Platform.select({
+      ios: "Menlo",
+      android: "monospace",
+      default: "monospace",
+    }),
+    backgroundColor: "#f4f4f4",
+    padding: 4,
+    borderRadius: 4,
+    fontSize: 14,
+  },
+});

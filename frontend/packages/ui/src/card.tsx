@@ -1,4 +1,5 @@
 import { type JSX } from "react";
+import { Linking, Pressable, StyleSheet, Text } from "react-native";
 
 export function Card({
   className,
@@ -12,16 +13,38 @@ export function Card({
   href: string;
 }): JSX.Element {
   return (
-    <a
-      className={className}
-      href={`${href}?utm_source=create-turbo&utm_medium=basic&utm_campaign=create-turbo"`}
-      rel="noopener noreferrer"
-      target="_blank"
+    <Pressable
+      style={styles.card}
+      onPress={() =>
+        Linking.openURL(
+          `${href}?utm_source=create-turbo&utm_medium=basic&utm_campaign=create-turbo"`
+        )
+      }
     >
-      <h2>
-        {title} <span>-&gt;</span>
-      </h2>
-      <p>{children}</p>
-    </a>
+      <Text style={styles.title}>
+        {title} <Text>→</Text>
+      </Text>
+      <Text style={styles.content}>{children}</Text>
+    </Pressable>
   );
 }
+
+const styles = StyleSheet.create({
+  card: {
+    padding: 16,
+    borderWidth: 1,
+    borderColor: "#eaeaea",
+    borderRadius: 8,
+    marginVertical: 8,
+    backgroundColor: "white",
+  },
+  title: {
+    fontSize: 18,
+    fontWeight: "bold",
+    marginBottom: 8,
+  },
+  content: {
+    fontSize: 14,
+    color: "#666",
+  },
+});
