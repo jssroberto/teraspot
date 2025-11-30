@@ -8,7 +8,7 @@ from botocore.exceptions import ClientError
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-# Configuration
+
 AWS_REGION = os.getenv("AWS_REGION", "us-east-1")
 SCREENSHOT_BUCKET = os.getenv("SCREENSHOT_BUCKET", "teraspot-bucket")
 IOT_ENDPOINT = os.getenv("IOT_ENDPOINT")
@@ -16,7 +16,6 @@ IOT_ENDPOINT = os.getenv("IOT_ENDPOINT")
 if IOT_ENDPOINT and not IOT_ENDPOINT.startswith("https://"):
     IOT_ENDPOINT = f"https://{IOT_ENDPOINT}"
 
-# Initialize clients lazily
 s3_client = None
 iot_client = None
 
@@ -80,7 +79,6 @@ def lambda_handler(event, context):
         if not iot_client:
             iot_client = boto3.client("iot-data", region_name=AWS_REGION, endpoint_url=IOT_ENDPOINT)
 
-        # Parse body
         body = event.get("body", "{}")
         if isinstance(body, str):
             body = json.loads(body)
@@ -97,10 +95,8 @@ def lambda_handler(event, context):
         response_data = {"device_id": device_id, "command": command}
 
         if command == "screenshot":
-            # 1. Generate Presigned URLs
             upload_url, download_url, key = _generate_presigned_urls(device_id)
             
-            # 2. Send command to device
             cmd_payload = {
                 "command": "screenshot",
                 "upload_url": upload_url,
@@ -114,7 +110,6 @@ def lambda_handler(event, context):
             response_data["s3_key"] = key
 
         elif command == "reload_config":
-            # Send reload command
             cmd_payload = {
                 "command": "reload_config",
                 "timestamp": int(time.time())

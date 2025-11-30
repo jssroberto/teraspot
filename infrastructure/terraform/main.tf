@@ -473,7 +473,7 @@ resource "aws_lambda_function" "ingest_status" {
 # IoT Rule
 # ==============================================================================
 resource "aws_iot_topic_rule" "ingest_rule" {
-  name        = "teraspot_ingest_rule_new"
+  name        = "teraspot_status_ingest"
   enabled     = true
   sql         = "SELECT * FROM 'teraspot/+/+/+/status'"
   sql_version = "2016-03-23"
@@ -489,4 +489,139 @@ resource "aws_lambda_permission" "iot_ingest_lambda" {
   function_name = aws_lambda_function.ingest_status.function_name
   principal     = "iot.amazonaws.com"
   source_arn    = aws_iot_topic_rule.ingest_rule.arn
+}
+
+# ==============================================================================
+# Analytics & Alerts (SQS + SNS + Lambda)
+# ==============================================================================
+
+# 1. SQS Queues (Imported)
+resource "aws_sqs_queue" "alerts_queue" {
+  name = "teraspot-alerts-dev"
+}
+
+resource "aws_sqs_queue" "low_confidence_queue" {
+  name = "teraspot-low-confidence-dev"
+}
+
+resource "aws_sqs_queue" "dlq_queue" {
+  name = "teraspot-dlq-dev"
+}
+
+# 2. SNS Topic (Imported)
+resource "aws_sns_topic" "alerts_topic" {
+  name = "alertas-teraspot"
+}
+
+# Link SQS to SNS (Optional: If you want SQS to subscribe to SNS, or vice versa)
+# For now, we assume the Lambda writes to SQS, and maybe SQS triggers SNS? 
+# Or Lambda writes to SQS for buffering? 
+# Based on code: Lambda -> SQS. 
+# We will leave the SNS topic definition here so it is managed.
+
+# 3. Analytics Lambda
+data "archive_file" "analytics_zip" {
+  type        = "zip"
+  source_file = "${path.module}/../../backend/lambdas/analytics_notifier/lambda_function.py"
+  output_path = "${path.module}/analytics_notifier.zip"
+}
+
+resource "aws_iam_role" "analytics_role" {
+  name = "teraspot_analytics_role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "sts:AssumeRole"
+        Effect = "Allow"
+        Principal = {
+          Service = "lambda.amazonaws.com"
+        }
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy" "analytics_policy" {
+  name = "teraspot_analytics_policy"
+  role = aws_iam_role.analytics_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "logs:CreateLogGroup",
+          "logs:CreateLogStream",
+          "logs:PutLogEvents"
+        ]
+        Resource = "arn:aws:logs:*:*:*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "dynamodb:GetRecords",
+          "dynamodb:GetShardIterator",
+          "dynamodb:DescribeStream",
+          "dynamodb:ListStreams",
+          "dynamodb:PutItem" # For history table
+        ]
+        Resource = [
+          "arn:aws:dynamodb:${var.aws_region}:${data.aws_caller_identity.current.account_id}:table/${var.dynamodb_table_name}",
+          "arn:aws:dynamodb:${var.aws_region}:${data.aws_caller_identity.current.account_id}:table/${var.dynamodb_table_name}/stream/*",
+           "arn:aws:dynamodb:${var.aws_region}:${data.aws_caller_identity.current.account_id}:table/parking-history" # Hardcoded for now based on lambda
+        ]
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "sqs:SendMessage"
+        ]
+        Resource = [
+          aws_sqs_queue.alerts_queue.arn,
+          aws_sqs_queue.low_confidence_queue.arn,
+          aws_sqs_queue.dlq_queue.arn
+        ]
+      }
+    ]
+  })
+}
+
+resource "aws_lambda_function" "analytics_notifier" {
+  filename         = data.archive_file.analytics_zip.output_path
+  function_name    = "teraspot-analytics-notifier"
+  role             = aws_iam_role.analytics_role.arn
+  handler          = "lambda_function.lambda_handler"
+  source_code_hash = data.archive_file.analytics_zip.output_base64sha256
+  runtime          = "python3.12"
+  timeout          = 30
+
+  environment {
+    variables = {
+      SQS_ALERTS_URL         = aws_sqs_queue.alerts_queue.id
+      SQS_LOW_CONFIDENCE_URL = aws_sqs_queue.low_confidence_queue.id
+      DLQ_URL                = aws_sqs_queue.dlq_queue.id
+      HISTORY_TABLE          = "parking-history"
+      DYNAMODB_TABLE         = var.dynamodb_table_name
+    }
+  }
+}
+
+# 4. DynamoDB Stream Trigger
+# NOTE: This requires Streams to be enabled on the DynamoDB table manually or via Terraform.
+# Since we are not managing the table resource fully here (it's referenced by name in variables),
+# we assume the stream exists. We need to look it up.
+
+data "aws_dynamodb_table" "parking_table" {
+  name = var.dynamodb_table_name
+}
+
+resource "aws_lambda_event_source_mapping" "dynamodb_stream" {
+  event_source_arn  = data.aws_dynamodb_table.parking_table.stream_arn
+  function_name     = aws_lambda_function.analytics_notifier.arn
+  starting_position = "LATEST"
+  batch_size        = 10
+  enabled           = true
 }

@@ -317,24 +317,19 @@ def lambda_handler(event, context):
     try:
         logger.info("config_saver triggered")
 
-        # Parse payload
         payload = _parse_payload(event)
 
         action = payload.get("action", "SAVE").upper()
 
-        # SAVE: Save new configuration
         if action == "SAVE":
             return _handle_save(payload)
 
-        # GET: Get configuration by ID
         elif action == "GET":
             return _handle_get(payload)
 
-        # LIST: List by type
         elif action == "LIST":
             return _handle_list(payload)
 
-        # DELETE: Delete configuration
         elif action == "DELETE":
             return _handle_delete(payload)
 

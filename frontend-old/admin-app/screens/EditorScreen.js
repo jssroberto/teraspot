@@ -78,22 +78,18 @@ export default function EditorScreen({ route, navigation }) {
         const { locationX, locationY } = event.nativeEvent;
         const rect = getDisplayedImageRect();
 
-        // Check if touch is inside the displayed image
         if (
             locationX < rect.x ||
             locationX > rect.x + rect.width ||
             locationY < rect.y ||
             locationY > rect.y + rect.height
         ) {
-            // Ignore touches outside the image
             return;
         }
 
-        // Normalize to 0-1 relative to the IMAGE, not the container
         let x = (locationX - rect.x) / rect.width;
         let y = (locationY - rect.y) / rect.height;
 
-        // Clamp just in case
         x = Math.max(0, Math.min(1, x));
         y = Math.max(0, Math.min(1, y));
 
@@ -125,9 +121,11 @@ export default function EditorScreen({ route, navigation }) {
         setLoading(true);
         try {
             await saveRoiConfig(device.device_id, polygons);
-            Alert.alert('Success', 'ROI Configuration Saved');
+            await reloadConfig(device.device_id);
+            Alert.alert('Success', 'ROI Configuration Saved & Device Reloaded');
         } catch (error) {
-            Alert.alert('Error', 'Failed to save config');
+            console.error(error);
+            Alert.alert('Error', 'Failed to save config or reload device');
         } finally {
             setLoading(false);
         }

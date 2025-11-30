@@ -86,11 +86,9 @@ export const getRoiConfig = async (deviceId) => {
             action: 'GET',
             config_id: configId,
         });
-        // Return the spaces list if it exists, or empty list
         return response.data.config?.value?.spaces || [];
     } catch (error) {
         console.error('Error fetching ROI config:', error);
-        // If config doesn't exist, return empty list
         return [];
     }
 };
