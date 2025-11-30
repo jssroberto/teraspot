@@ -62,6 +62,16 @@ class YOLOProcessor:
         self.source_type = "image"
         self.frame_skip = max(frame_skip, 0)
         self._roi_spaces: Dict[str, ParkingSpaceROI] = {}
+        self.last_frame = None
+
+    def get_current_frame(self):
+        """Returns the last processed frame encoded as JPEG bytes."""
+        if self.last_frame is None:
+            return None
+        success, encoded_image = cv2.imencode(".jpg", self.last_frame)
+        if not success:
+            return None
+        return encoded_image.tobytes()
 
     def set_roi_spaces(self, spaces_config: List[Dict[str, object]]):
         """Validate and store ROI polygons for parking spaces."""
@@ -138,7 +148,7 @@ class YOLOProcessor:
         return frame
 
     def _map_detections_to_spaces(
-        self, detections: List[Dict[str, Optional[float]]]
+        self, detections: List[Dict[str, Optional[float]]], width: int, height: int
     ) -> Dict[str, float]:
         """Return per-space confidence scores from detection centerpoints."""
         occupancy: Dict[str, float] = {}
@@ -146,8 +156,12 @@ class YOLOProcessor:
             center = detection.get("center")
             if not center:
                 continue
+            
+            # Normalize center to 0-1 to match ROI polygons
+            norm_center = (center[0] / width, center[1] / height)
+            
             for roi in self._roi_spaces.values():
-                if point_in_polygon(center, roi.polygon):
+                if point_in_polygon(norm_center, roi.polygon):
                     confidence = float(detection.get("confidence") or 0.0)
                     prev = occupancy.get(roi.space_id)
                     if prev is None or confidence > prev:
@@ -185,7 +199,9 @@ class YOLOProcessor:
                 img_path = image_path or self.image_path
                 if not img_path:
                     raise ValueError("No image path provided")
-                inference_source = img_path
+                inference_source = cv2.imread(img_path) # Read image to store it
+            
+            self.last_frame = inference_source
 
             try:
                 # Run YOLO inference
@@ -217,10 +233,12 @@ class YOLOProcessor:
                                 "confidence": float(conf) if conf is not None else None,
                             }
                         )
+                        logger.info(f"   -> Detected object at {center} with conf {conf:.2f}")
 
                 # Accumulate votes if ROIs are defined
                 if self._roi_spaces:
-                    occupancy_map = self._map_detections_to_spaces(detections)
+                    height, width = inference_source.shape[:2]
+                    occupancy_map = self._map_detections_to_spaces(detections, width, height)
                     for space_id, conf in occupancy_map.items():
                         space_votes[space_id] = space_votes.get(space_id, 0) + 1
                         space_conf_sum[space_id] = (

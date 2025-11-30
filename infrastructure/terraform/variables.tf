@@ -21,3 +21,14 @@ variable "environment" {
   type        = string
   default     = "dev"
 }
+
+variable "iot_endpoint" {
+  description = "AWS IoT Core Endpoint"
+  type        = string
+}
+
+variable "dynamodb_table_name" {
+  description = "Name of the DynamoDB table for parking spaces"
+  type        = string
+  default     = "parking-spaces-dev"
+}

@@ -49,6 +49,18 @@ def _validate_alert_rule(config: dict[str, Any]) -> tuple[bool, str]:
     return True, ""
 
 
+def _validate_roi(config: dict[str, Any]) -> tuple[bool, str]:
+    if "device_id" not in config:
+        return False, "roi must have 'device_id'"
+    spaces = config.get("value", {}).get("spaces")
+    if not isinstance(spaces, list):
+        return False, "roi value must have 'spaces' list"
+    for space in spaces:
+        if "space_id" not in space or "polygon" not in space:
+            return False, "each space must have 'space_id' and 'polygon'"
+    return True, ""
+
+
 def validate_config(config: dict[str, Any]) -> tuple[bool, str]:
     """
     Validates that the configuration meets the required schema.
@@ -60,7 +72,7 @@ def validate_config(config: dict[str, Any]) -> tuple[bool, str]:
             return False, f"Missing required field: {field}"
 
     # Valid types
-    valid_types = ["threshold", "zone", "device", "alert_rule"]
+    valid_types = ["threshold", "zone", "device", "alert_rule", "roi"]
     config_type = config.get("config_type")
     if config_type not in valid_types:
         return False, f"Invalid config_type. Must be one of: {valid_types}"
@@ -74,6 +86,8 @@ def validate_config(config: dict[str, Any]) -> tuple[bool, str]:
         return _validate_device(config)
     elif config_type == "alert_rule":
         return _validate_alert_rule(config)
+    elif config_type == "roi":
+        return _validate_roi(config)
 
     return True, ""
 
@@ -90,6 +104,8 @@ def _generate_config_id(config: dict[str, Any]) -> str:
         return f"threshold-{config['threshold_id']}"
     elif config_type == "alert_rule":
         return f"alert-{config['rule_id']}"
+    elif config_type == "roi":
+        return f"roi-{config['device_id']}"
 
     return ""
 
@@ -264,6 +280,35 @@ def _handle_list(payload: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def delete_config(config_id: str) -> tuple[bool, str]:
+    """
+    Deletes configuration from S3.
+    """
+    try:
+        key = f"configs/{config_id}.json"
+        s3_client.delete_object(Bucket=CONFIG_BUCKET_NAME, Key=key)
+        logger.info(f"Deleted config: {config_id}")
+        return True, f"Config {config_id} deleted successfully"
+    except Exception as e:
+        logger.error(f"Failed to delete config {config_id}: {str(e)}")
+        return False, str(e)
+
+
+def _handle_delete(payload: dict[str, Any]) -> dict[str, Any]:
+    config_id = payload.get("config_id")
+    if not config_id:
+        return {
+            "statusCode": 400,
+            "body": json.dumps({"error": "config_id required"}),
+        }
+
+    success, message = delete_config(config_id)
+    return {
+        "statusCode": 200 if success else 500,
+        "body": json.dumps({"message": message, "success": success}),
+    }
+
+
 def lambda_handler(event, context):
     """
     Handles configuration CRUD.
@@ -272,22 +317,21 @@ def lambda_handler(event, context):
     try:
         logger.info("config_saver triggered")
 
-        # Parse payload
         payload = _parse_payload(event)
 
         action = payload.get("action", "SAVE").upper()
 
-        # SAVE: Save new configuration
         if action == "SAVE":
             return _handle_save(payload)
 
-        # GET: Get configuration by ID
         elif action == "GET":
             return _handle_get(payload)
 
-        # LIST: List by type
         elif action == "LIST":
             return _handle_list(payload)
+
+        elif action == "DELETE":
+            return _handle_delete(payload)
 
         else:
             return {
