@@ -32,6 +32,12 @@ importers:
       '@react-navigation/native':
         specifier: ^7.1.8
         version: 7.1.22(react-native@0.81.5(@babel/core@7.28.5)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)
+      '@repo/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@repo/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
       expo:
         specifier: ~54.0.25
         version: 54.0.25(@babel/core@7.28.5)(@expo/metro-runtime@6.1.2)(expo-router@6.0.15)(react-native@0.81.5(@babel/core@7.28.5)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)
@@ -123,6 +129,12 @@ importers:
       '@react-navigation/native':
         specifier: ^7.1.8
         version: 7.1.22(react-native@0.81.5(@babel/core@7.28.5)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)
+      '@repo/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@repo/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
       expo:
         specifier: ~54.0.25
         version: 54.0.25(@babel/core@7.28.5)(@expo/metro-runtime@6.1.2)(expo-router@6.0.15)(react-native@0.81.5(@babel/core@7.28.5)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)
@@ -198,6 +210,28 @@ importers:
         version: 10.0.0(eslint@9.39.1)(typescript@5.9.2)
       typescript:
         specifier: ~5.9.2
+        version: 5.9.2
+
+  packages/core:
+    dependencies:
+      react:
+        specifier: '*'
+        version: 19.2.0
+    devDependencies:
+      '@repo/eslint-config':
+        specifier: workspace:*
+        version: link:../eslint-config
+      '@repo/typescript-config':
+        specifier: workspace:*
+        version: link:../typescript-config
+      '@types/react':
+        specifier: 19.2.2
+        version: 19.2.2
+      eslint:
+        specifier: ^9.39.1
+        version: 9.39.1
+      typescript:
+        specifier: 5.9.2
         version: 5.9.2
 
   packages/eslint-config:
@@ -4272,6 +4306,7 @@ packages:
   typescript@5.9.2:
     resolution: {integrity: sha512-CWBzXQrc/qOkhidw1OzBTQuYRbfyxDXJMVJ1XNwUHGROVmuaeiEm3OslpZ1RV96d7SKKjZKrSJu3+t/xlw3R9A==}
     engines: {node: '>=14.17'}
+    hasBin: true
 
   ua-parser-js@1.0.41:
     resolution: {integrity: sha512-LbBDqdIC5s8iROCUjMbW1f5dJQTEFB1+KO9ogbvlb3nm9n4YHa5p4KTvFPWvh2Hs8gZMBuiB1/8+pdfe/tDPug==}
