@@ -4,8 +4,7 @@ on:
   push:
     branches: [main, feat/infrastructure, feat/complete-system]
 
-env:
-  AWS_REGION: us-east-1
+
 
 jobs:
   test:
@@ -16,7 +15,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.10'
+          python-version: '3.12'
       
       - name: Install dependencies
         run: |
@@ -46,7 +45,7 @@ jobs:
 
   deploy:
     needs: test
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v3
       
@@ -54,7 +53,7 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: us-east-1
+          aws-region: ${{ secrets.AWS_REGION }}
       
       - name: Deploy ingest_status
         run: |

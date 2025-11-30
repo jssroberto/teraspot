@@ -1,0 +1,282 @@
+============================= test session starts ==============================
+platform linux -- Python 3.13.9, pytest-7.4.0, pluggy-1.6.0
+rootdir: /home/jssroberto/Documents/GitHub/teraspot/backend
+configfile: pytest.ini
+plugins: Faker-21.0.0, django-4.7.0, cov-4.1.0, anyio-4.8.0
+collected 9 items
+
+lambdas/ingest_status/tests/test_ingest_status.py EEEEEEEEE              [100%]
+
+==================================== ERRORS ====================================
+_________ ERROR at setup of test_parse_events_accepts_legacy_snapshot __________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fb73a889a70>
+
+    @pytest.fixture(autouse=True)
+    def mock_dependencies(monkeypatch):
+        current_table = DummyTable()
+    
+        saved_alerts = {"alerts": []}
+    
+        monkeypatch.setattr(lambda_function, "current_table", current_table)
+        monkeypatch.setattr(lambda_function, "current_table", current_table)
+    
+        def fake_save_current(items, table):
+            table.items.extend(items)
+    
+        def fake_current_occupancy(table):
+            occupied = sum(1 for item in table.items if item.get("status") == "occupied")
+            return occupied, max(len(table.items), 1)
+    
+        def fake_dispatch(alerts, sqs_client, low_queue, main_queue):
+            saved_alerts["alerts"].extend(alerts)
+    
+        monkeypatch.setattr(lambda_function, "save_current", fake_save_current)
+    
+>       monkeypatch.setattr(lambda_function, "current_occupancy", fake_current_occupancy)
+E       AttributeError: <module 'ingest_status.lambda_function' from '/home/jssroberto/Documents/GitHub/teraspot/backend/lambdas/ingest_status/lambda_function.py'> has no attribute 'current_occupancy'
+
+lambdas/ingest_status/tests/test_ingest_status.py:46: AttributeError
+________________ ERROR at setup of test_parse_events_from_list _________________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fb73a71d370>
+
+    @pytest.fixture(autouse=True)
+    def mock_dependencies(monkeypatch):
+        current_table = DummyTable()
+    
+        saved_alerts = {"alerts": []}
+    
+        monkeypatch.setattr(lambda_function, "current_table", current_table)
+        monkeypatch.setattr(lambda_function, "current_table", current_table)
+    
+        def fake_save_current(items, table):
+            table.items.extend(items)
+    
+        def fake_current_occupancy(table):
+            occupied = sum(1 for item in table.items if item.get("status") == "occupied")
+            return occupied, max(len(table.items), 1)
+    
+        def fake_dispatch(alerts, sqs_client, low_queue, main_queue):
+            saved_alerts["alerts"].extend(alerts)
+    
+        monkeypatch.setattr(lambda_function, "save_current", fake_save_current)
+    
+>       monkeypatch.setattr(lambda_function, "current_occupancy", fake_current_occupancy)
+E       AttributeError: <module 'ingest_status.lambda_function' from '/home/jssroberto/Documents/GitHub/teraspot/backend/lambdas/ingest_status/lambda_function.py'> has no attribute 'current_occupancy'
+
+lambdas/ingest_status/tests/test_ingest_status.py:46: AttributeError
+__________________ ERROR at setup of test_validate_data_valid __________________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fb73a887bd0>
+
+    @pytest.fixture(autouse=True)
+    def mock_dependencies(monkeypatch):
+        current_table = DummyTable()
+    
+        saved_alerts = {"alerts": []}
+    
+        monkeypatch.setattr(lambda_function, "current_table", current_table)
+        monkeypatch.setattr(lambda_function, "current_table", current_table)
+    
+        def fake_save_current(items, table):
+            table.items.extend(items)
+    
+        def fake_current_occupancy(table):
+            occupied = sum(1 for item in table.items if item.get("status") == "occupied")
+            return occupied, max(len(table.items), 1)
+    
+        def fake_dispatch(alerts, sqs_client, low_queue, main_queue):
+            saved_alerts["alerts"].extend(alerts)
+    
+        monkeypatch.setattr(lambda_function, "save_current", fake_save_current)
+    
+>       monkeypatch.setattr(lambda_function, "current_occupancy", fake_current_occupancy)
+E       AttributeError: <module 'ingest_status.lambda_function' from '/home/jssroberto/Documents/GitHub/teraspot/backend/lambdas/ingest_status/lambda_function.py'> has no attribute 'current_occupancy'
+
+lambdas/ingest_status/tests/test_ingest_status.py:46: AttributeError
+_____________ ERROR at setup of test_validate_data_invalid_status ______________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fb73a7f2030>
+
+    @pytest.fixture(autouse=True)
+    def mock_dependencies(monkeypatch):
+        current_table = DummyTable()
+    
+        saved_alerts = {"alerts": []}
+    
+        monkeypatch.setattr(lambda_function, "current_table", current_table)
+        monkeypatch.setattr(lambda_function, "current_table", current_table)
+    
+        def fake_save_current(items, table):
+            table.items.extend(items)
+    
+        def fake_current_occupancy(table):
+            occupied = sum(1 for item in table.items if item.get("status") == "occupied")
+            return occupied, max(len(table.items), 1)
+    
+        def fake_dispatch(alerts, sqs_client, low_queue, main_queue):
+            saved_alerts["alerts"].extend(alerts)
+    
+        monkeypatch.setattr(lambda_function, "save_current", fake_save_current)
+    
+>       monkeypatch.setattr(lambda_function, "current_occupancy", fake_current_occupancy)
+E       AttributeError: <module 'ingest_status.lambda_function' from '/home/jssroberto/Documents/GitHub/teraspot/backend/lambdas/ingest_status/lambda_function.py'> has no attribute 'current_occupancy'
+
+lambdas/ingest_status/tests/test_ingest_status.py:46: AttributeError
+_________ ERROR at setup of test_validate_data_confidence_out_of_range _________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fb73a71a550>
+
+    @pytest.fixture(autouse=True)
+    def mock_dependencies(monkeypatch):
+        current_table = DummyTable()
+    
+        saved_alerts = {"alerts": []}
+    
+        monkeypatch.setattr(lambda_function, "current_table", current_table)
+        monkeypatch.setattr(lambda_function, "current_table", current_table)
+    
+        def fake_save_current(items, table):
+            table.items.extend(items)
+    
+        def fake_current_occupancy(table):
+            occupied = sum(1 for item in table.items if item.get("status") == "occupied")
+            return occupied, max(len(table.items), 1)
+    
+        def fake_dispatch(alerts, sqs_client, low_queue, main_queue):
+            saved_alerts["alerts"].extend(alerts)
+    
+        monkeypatch.setattr(lambda_function, "save_current", fake_save_current)
+    
+>       monkeypatch.setattr(lambda_function, "current_occupancy", fake_current_occupancy)
+E       AttributeError: <module 'ingest_status.lambda_function' from '/home/jssroberto/Documents/GitHub/teraspot/backend/lambdas/ingest_status/lambda_function.py'> has no attribute 'current_occupancy'
+
+lambdas/ingest_status/tests/test_ingest_status.py:46: AttributeError
+___________ ERROR at setup of test_validate_data_missing_confidence ____________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fb73a71a250>
+
+    @pytest.fixture(autouse=True)
+    def mock_dependencies(monkeypatch):
+        current_table = DummyTable()
+    
+        saved_alerts = {"alerts": []}
+    
+        monkeypatch.setattr(lambda_function, "current_table", current_table)
+        monkeypatch.setattr(lambda_function, "current_table", current_table)
+    
+        def fake_save_current(items, table):
+            table.items.extend(items)
+    
+        def fake_current_occupancy(table):
+            occupied = sum(1 for item in table.items if item.get("status") == "occupied")
+            return occupied, max(len(table.items), 1)
+    
+        def fake_dispatch(alerts, sqs_client, low_queue, main_queue):
+            saved_alerts["alerts"].extend(alerts)
+    
+        monkeypatch.setattr(lambda_function, "save_current", fake_save_current)
+    
+>       monkeypatch.setattr(lambda_function, "current_occupancy", fake_current_occupancy)
+E       AttributeError: <module 'ingest_status.lambda_function' from '/home/jssroberto/Documents/GitHub/teraspot/backend/lambdas/ingest_status/lambda_function.py'> has no attribute 'current_occupancy'
+
+lambdas/ingest_status/tests/test_ingest_status.py:46: AttributeError
+_____________ ERROR at setup of test_lambda_handler_valid_payload ______________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fb73a7ca300>
+
+    @pytest.fixture(autouse=True)
+    def mock_dependencies(monkeypatch):
+        current_table = DummyTable()
+    
+        saved_alerts = {"alerts": []}
+    
+        monkeypatch.setattr(lambda_function, "current_table", current_table)
+        monkeypatch.setattr(lambda_function, "current_table", current_table)
+    
+        def fake_save_current(items, table):
+            table.items.extend(items)
+    
+        def fake_current_occupancy(table):
+            occupied = sum(1 for item in table.items if item.get("status") == "occupied")
+            return occupied, max(len(table.items), 1)
+    
+        def fake_dispatch(alerts, sqs_client, low_queue, main_queue):
+            saved_alerts["alerts"].extend(alerts)
+    
+        monkeypatch.setattr(lambda_function, "save_current", fake_save_current)
+    
+>       monkeypatch.setattr(lambda_function, "current_occupancy", fake_current_occupancy)
+E       AttributeError: <module 'ingest_status.lambda_function' from '/home/jssroberto/Documents/GitHub/teraspot/backend/lambdas/ingest_status/lambda_function.py'> has no attribute 'current_occupancy'
+
+lambdas/ingest_status/tests/test_ingest_status.py:46: AttributeError
+_________________ ERROR at setup of test_lambda_handler_empty __________________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fb73a7cab70>
+
+    @pytest.fixture(autouse=True)
+    def mock_dependencies(monkeypatch):
+        current_table = DummyTable()
+    
+        saved_alerts = {"alerts": []}
+    
+        monkeypatch.setattr(lambda_function, "current_table", current_table)
+        monkeypatch.setattr(lambda_function, "current_table", current_table)
+    
+        def fake_save_current(items, table):
+            table.items.extend(items)
+    
+        def fake_current_occupancy(table):
+            occupied = sum(1 for item in table.items if item.get("status") == "occupied")
+            return occupied, max(len(table.items), 1)
+    
+        def fake_dispatch(alerts, sqs_client, low_queue, main_queue):
+            saved_alerts["alerts"].extend(alerts)
+    
+        monkeypatch.setattr(lambda_function, "save_current", fake_save_current)
+    
+>       monkeypatch.setattr(lambda_function, "current_occupancy", fake_current_occupancy)
+E       AttributeError: <module 'ingest_status.lambda_function' from '/home/jssroberto/Documents/GitHub/teraspot/backend/lambdas/ingest_status/lambda_function.py'> has no attribute 'current_occupancy'
+
+lambdas/ingest_status/tests/test_ingest_status.py:46: AttributeError
+______________ ERROR at setup of test_lambda_handler_invalid_data ______________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fb73a942cf0>
+
+    @pytest.fixture(autouse=True)
+    def mock_dependencies(monkeypatch):
+        current_table = DummyTable()
+    
+        saved_alerts = {"alerts": []}
+    
+        monkeypatch.setattr(lambda_function, "current_table", current_table)
+        monkeypatch.setattr(lambda_function, "current_table", current_table)
+    
+        def fake_save_current(items, table):
+            table.items.extend(items)
+    
+        def fake_current_occupancy(table):
+            occupied = sum(1 for item in table.items if item.get("status") == "occupied")
+            return occupied, max(len(table.items), 1)
+    
+        def fake_dispatch(alerts, sqs_client, low_queue, main_queue):
+            saved_alerts["alerts"].extend(alerts)
+    
+        monkeypatch.setattr(lambda_function, "save_current", fake_save_current)
+    
+>       monkeypatch.setattr(lambda_function, "current_occupancy", fake_current_occupancy)
+E       AttributeError: <module 'ingest_status.lambda_function' from '/home/jssroberto/Documents/GitHub/teraspot/backend/lambdas/ingest_status/lambda_function.py'> has no attribute 'current_occupancy'
+
+lambdas/ingest_status/tests/test_ingest_status.py:46: AttributeError
+=========================== short test summary info ============================
+ERROR lambdas/ingest_status/tests/test_ingest_status.py::test_parse_events_accepts_legacy_snapshot
+ERROR lambdas/ingest_status/tests/test_ingest_status.py::test_parse_events_from_list
+ERROR lambdas/ingest_status/tests/test_ingest_status.py::test_validate_data_valid
+ERROR lambdas/ingest_status/tests/test_ingest_status.py::test_validate_data_invalid_status
+ERROR lambdas/ingest_status/tests/test_ingest_status.py::test_validate_data_confidence_out_of_range
+ERROR lambdas/ingest_status/tests/test_ingest_status.py::test_validate_data_missing_confidence
+ERROR lambdas/ingest_status/tests/test_ingest_status.py::test_lambda_handler_valid_payload
+ERROR lambdas/ingest_status/tests/test_ingest_status.py::test_lambda_handler_empty
+ERROR lambdas/ingest_status/tests/test_ingest_status.py::test_lambda_handler_invalid_data
+============================== 9 errors in 0.38s ===============================
