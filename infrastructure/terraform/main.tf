@@ -703,3 +703,64 @@ resource "aws_lambda_event_source_mapping" "dynamodb_stream" {
   batch_size        = 10
   enabled           = true
 }
+
+# ==============================================================================
+# ECR Repository (Fog Node)
+# ==============================================================================
+resource "aws_ecr_repository" "fog_repo" {
+  name                 = "teraspot-fog"
+  image_tag_mutability = "MUTABLE"
+
+  image_scanning_configuration {
+    scan_on_push = false
+  }
+
+  encryption_configuration {
+    encryption_type = "AES256"
+  }
+
+  # Prevent accidental deletion of the registry and images
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+
+# ==============================================================================
+# CI/CD IAM User & Permissions
+# ==============================================================================
+resource "aws_iam_user" "ci_user" {
+  name = "teraspot-github-ci"
+  
+  # Prevent accidental deletion
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+
+# Attach ECR PowerUser policy to the CI user
+resource "aws_iam_user_policy_attachment" "ci_user_ecr_policy" {
+  user       = aws_iam_user.ci_user.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryPowerUser"
+}
+
+# Attach existing policies (to match current AWS state)
+resource "aws_iam_user_policy_attachment" "ci_user_dynamodb_policy" {
+  user       = aws_iam_user.ci_user.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonDynamoDBFullAccess"
+}
+
+resource "aws_iam_user_policy_attachment" "ci_user_s3_policy" {
+  user       = aws_iam_user.ci_user.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonS3FullAccess"
+}
+
+resource "aws_iam_user_policy_attachment" "ci_user_timestream_policy" {
+  user       = aws_iam_user.ci_user.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonTimestreamFullAccess"
+}
+
+resource "aws_iam_user_policy_attachment" "ci_user_lambda_policy" {
+  user       = aws_iam_user.ci_user.name
+  policy_arn = "arn:aws:iam::aws:policy/AWSLambda_FullAccess"
+}
+
