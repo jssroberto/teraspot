@@ -2,26 +2,24 @@ name: Deploy Lambdas
 
 on:
   push:
-    branches: [main, feat/infrastructure, feat/complete-system]
-
-
+    branches: [main]
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v3
-      
+
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.12'
-      
+          python-version: "3.12"
+
       - name: Install dependencies
         run: |
           cd backend
           pip install -r requirements.txt
-      
+
       - name: Test ingest_status
         run: |
           cd backend
@@ -42,19 +40,18 @@ jobs:
           cd backend
           CI=true pytest lambdas/config_saver/tests/ -v
 
-
   deploy:
     needs: test
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v3
-      
+
       - uses: aws-actions/configure-aws-credentials@v2
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
-      
+
       - name: Deploy ingest_status
         run: |
           cd backend/lambdas/ingest_status
@@ -66,7 +63,7 @@ jobs:
           aws lambda update-function-code \
             --function-name teraspot-ingest-lambda \
             --zip-file fileb://lambda.zip
-      
+
       - name: Deploy analytics_notifier
         run: |
           cd backend/lambdas/analytics_notifier
@@ -76,7 +73,7 @@ jobs:
           aws lambda update-function-code \
             --function-name teraspot-analytics-notifier \
             --zip-file fileb://lambda.zip
-      
+
       - name: Deploy read_status
         run: |
           cd backend/lambdas/read_status
@@ -86,7 +83,7 @@ jobs:
           aws lambda update-function-code \
             --function-name teraspot-read-status \
             --zip-file fileb://lambda.zip
-      
+
       - name: Deploy config_saver
         run: |
           cd backend/lambdas/config_saver
