@@ -662,6 +662,16 @@ resource "aws_iam_role_policy" "analytics_policy" {
           aws_sqs_queue.low_confidence_queue.arn,
           aws_sqs_queue.dlq_queue.arn
         ]
+      },
+      {
+        Effect = "Allow"
+        Action = ["dynamodb:Scan", "dynamodb:DeleteItem"]
+        Resource = aws_dynamodb_table.connections_table.arn
+      },
+      {
+        Effect = "Allow"
+        Action = ["execute-api:ManageConnections"]
+        Resource = "${aws_apigatewayv2_api.websocket_api.execution_arn}/*"
       }
     ]
   })
@@ -683,6 +693,8 @@ resource "aws_lambda_function" "analytics_notifier" {
       DLQ_URL                = aws_sqs_queue.dlq_queue.id
       HISTORY_TABLE          = "parking-history"
       DYNAMODB_TABLE         = var.dynamodb_table_name
+      CONNECTIONS_TABLE      = aws_dynamodb_table.connections_table.name
+      WEBSOCKET_CALLBACK_URL = replace(aws_apigatewayv2_stage.ws_stage.invoke_url, "wss://", "https://")
     }
   }
 }
