@@ -62,6 +62,16 @@ class YOLOProcessor:
         self.source_type = "image"
         self.frame_skip = max(frame_skip, 0)
         self._roi_spaces: Dict[str, ParkingSpaceROI] = {}
+        self.last_frame = None
+
+    def get_current_frame(self):
+        """Returns the last processed frame encoded as JPEG bytes."""
+        if self.last_frame is None:
+            return None
+        success, encoded_image = cv2.imencode(".jpg", self.last_frame)
+        if not success:
+            return None
+        return encoded_image.tobytes()
 
     def set_roi_spaces(self, spaces_config: List[Dict[str, object]]):
         """Validate and store ROI polygons for parking spaces."""
@@ -113,7 +123,31 @@ class YOLOProcessor:
         self.cap = cap
         self.video_path = video_path
         self.source_type = "video"
-        logger.info(f"Video source set to: {video_path}")
+        
+        # Get FPS
+        self.fps = self.cap.get(cv2.CAP_PROP_FPS)
+        if not self.fps or self.fps <= 0:
+            self.fps = 30.0
+            logger.warning(f"Could not determine FPS, defaulting to {self.fps}")
+            
+        logger.info(f"Video source set to: {video_path} (FPS: {self.fps:.2f})")
+
+    def advance_video_time(self, seconds):
+        """Skip frames to simulate time passing in a video file"""
+        if self.source_type == "video" and self.cap:
+            frames_to_skip = int(seconds * self.fps)
+            if frames_to_skip > 0:
+                current_frame = self.cap.get(cv2.CAP_PROP_POS_FRAMES)
+                total_frames = self.cap.get(cv2.CAP_PROP_FRAME_COUNT)
+                
+                new_pos = current_frame + frames_to_skip
+                
+                # Handle loop if we go past end
+                if total_frames > 0:
+                    new_pos = new_pos % total_frames
+                    
+                self.cap.set(cv2.CAP_PROP_POS_FRAMES, new_pos)
+                logger.debug(f"Advanced video by {seconds}s ({frames_to_skip} frames) to frame {int(new_pos)}")
 
     def cleanup(self):
         """Release any open capture resources"""
@@ -138,7 +172,7 @@ class YOLOProcessor:
         return frame
 
     def _map_detections_to_spaces(
-        self, detections: List[Dict[str, Optional[float]]]
+        self, detections: List[Dict[str, Optional[float]]], width: int, height: int
     ) -> Dict[str, float]:
         """Return per-space confidence scores from detection centerpoints."""
         occupancy: Dict[str, float] = {}
@@ -146,8 +180,12 @@ class YOLOProcessor:
             center = detection.get("center")
             if not center:
                 continue
+            
+            # Normalize center to 0-1 to match ROI polygons
+            norm_center = (center[0] / width, center[1] / height)
+            
             for roi in self._roi_spaces.values():
-                if point_in_polygon(center, roi.polygon):
+                if point_in_polygon(norm_center, roi.polygon):
                     confidence = float(detection.get("confidence") or 0.0)
                     prev = occupancy.get(roi.space_id)
                     if prev is None or confidence > prev:
@@ -185,7 +223,9 @@ class YOLOProcessor:
                 img_path = image_path or self.image_path
                 if not img_path:
                     raise ValueError("No image path provided")
-                inference_source = img_path
+                inference_source = cv2.imread(img_path) # Read image to store it
+            
+            self.last_frame = inference_source
 
             try:
                 # Run YOLO inference
@@ -220,7 +260,8 @@ class YOLOProcessor:
 
                 # Accumulate votes if ROIs are defined
                 if self._roi_spaces:
-                    occupancy_map = self._map_detections_to_spaces(detections)
+                    height, width = inference_source.shape[:2]
+                    occupancy_map = self._map_detections_to_spaces(detections, width, height)
                     for space_id, conf in occupancy_map.items():
                         space_votes[space_id] = space_votes.get(space_id, 0) + 1
                         space_conf_sum[space_id] = (

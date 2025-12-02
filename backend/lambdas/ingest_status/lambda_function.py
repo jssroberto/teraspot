@@ -10,9 +10,9 @@ from typing import Any, Dict, List
 
 import boto3
 
-from .parser import parse_events
-from .qa import enrich_event, validate_data
-from .persistence import save_current
+from parser import parse_events
+from qa import enrich_event, validate_data
+from persistence import save_current
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)

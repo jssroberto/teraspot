@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+    branches: [dev]
+
+jobs:
+  test:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          cd backend
+          pip install -r requirements.txt
+
+      - name: Test ingest_status
+        run: |
+          cd backend
+          pytest lambdas/ingest_status/tests/ -v
+
+      - name: Test analytics_notifier
+        run: |
+          cd backend
+          pytest lambdas/analytics_notifier/tests/ -v
+
+      - name: Test read_status
+        run: |
+          cd backend
+          pytest lambdas/read_status/tests/ -v
+
+      - name: Test config_saver
+        run: |
+          cd backend
+          CI=true pytest lambdas/config_saver/tests/ -v

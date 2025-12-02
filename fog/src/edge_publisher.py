@@ -9,7 +9,10 @@ import argparse
 import logging
 import sys
 import time
+import json
+import requests
 
+from awscrt import mqtt
 from awsiot import mqtt_connection_builder
 from config_utils import load_config_from_env, resolve_roi_spaces
 from publisher_utils import (
@@ -62,8 +65,8 @@ def main():
     )
     parser.add_argument(
         "--image",
-        default="assets/bus.jpg",
-        help="Image path for YOLO inference (default: assets/bus.jpg)",
+        default="fog/assets/bus.jpg",
+        help="Image path for YOLO inference (default: fog/assets/bus.jpg)",
     )
     parser.add_argument(
         "--video",
@@ -84,8 +87,8 @@ def main():
     parser.add_argument(
         "--conf-threshold",
         type=float,
-        default=0.75,
-        help="Confidence threshold for YOLO inference (default: 0.75)",
+        default=0.25,
+        help="Confidence threshold for YOLO inference (default: 0.25)",
     )
     parser.add_argument(
         "--roi-config",
@@ -131,10 +134,33 @@ def main():
 
     config = load_config_from_env()
 
+    # Sync device_id with Thing Name if using default
+    if args.device_id == "teraspot-edge-device" and config.get("thing_name"):
+        args.device_id = config["thing_name"]
+        logger.info(f"Using Thing Name as Device ID: {args.device_id}")
+
     change_tracker = SpaceStateTracker()
     roi_spaces = None
     if args.use_yolo:
         roi_spaces = resolve_roi_spaces(args)
+        
+        # Try to fetch dynamic config (Video Source) from API
+        try:
+            api_url = f"https://7omj4x5pbg.execute-api.us-east-1.amazonaws.com/dev/config"
+            payload = {
+                "action": "GET",
+                "config_id": f"device-{args.device_id}"
+            }
+            resp = requests.post(api_url, json=payload, timeout=5)
+            if resp.status_code == 200:
+                device_config = resp.json().get("config", {}).get("value", {})
+                remote_video = device_config.get("video_source")
+                if remote_video:
+                    logger.info(f"Found remote video source configuration: {remote_video}")
+                    args.video = remote_video
+        except Exception as e:
+            logger.warning(f"Failed to fetch remote device config: {e}")
+
         if not roi_spaces:
             logger.error(
                 "ROI configuration is required when running YOLO inference. "
@@ -199,6 +225,56 @@ def main():
         connect_future = mqtt_connection.connect()
         connect_future.result()
 
+        # Subscribe to commands
+        command_topic = f"teraspot/commands/{config['thing_name']}"
+        logger.info(f"Subscribing to commands on: {command_topic}")
+
+        def on_command_received(topic, payload, dup, qos, retain, **kwargs):
+            try:
+                message = json.loads(payload)
+                command = message.get("command")
+                logger.info(f"Received command: {command}")
+
+                if command == "screenshot":
+                    upload_url = message.get("upload_url")
+                    if not upload_url:
+                        logger.error("Screenshot command missing upload_url")
+                        return
+                    
+                    if yolo:
+                        frame_bytes = yolo.get_current_frame()
+                        if frame_bytes:
+                            logger.info("Uploading screenshot...")
+                            resp = requests.put(upload_url, data=frame_bytes, headers={"Content-Type": "image/jpeg"})
+                            if resp.status_code == 200:
+                                logger.info("Screenshot uploaded successfully")
+                            else:
+                                logger.error(f"Failed to upload screenshot: {resp.status_code} - {resp.text}")
+                        else:
+                            logger.warning("No frame available for screenshot")
+                    else:
+                        logger.warning("YOLO not enabled, cannot take screenshot")
+
+                elif command == "reload_config":
+                    logger.info("Reloading configuration...")
+                    # Reload ROI config
+                    new_roi_spaces = resolve_roi_spaces(args)
+                    if new_roi_spaces and yolo:
+                        yolo.set_roi_spaces(new_roi_spaces)
+                        logger.info("ROI configuration reloaded")
+                    elif not new_roi_spaces:
+                         logger.warning("Reload requested but no ROI config found")
+
+            except Exception as e:
+                logger.error(f"Error processing command: {e}")
+
+        subscribe_future, _ = mqtt_connection.subscribe(
+            topic=command_topic,
+            qos=mqtt.QoS.AT_LEAST_ONCE,
+            callback=on_command_received
+        )
+        subscribe_future.result()
+
         
         iteration = 0
         last_publish_time = 0
@@ -210,6 +286,8 @@ def main():
             if iteration > 0:
                 logger.info(f"\nWaiting {args.interval} seconds before next message...")
                 time.sleep(args.interval)
+                if yolo:
+                    yolo.advance_video_time(args.interval)
 
             logger.info(f"\nMessage {iteration + 1}")
 
@@ -236,7 +314,7 @@ def main():
             
             
             time_since_last = current_time - last_publish_time
-            is_heartbeat = time_since_last > HEARTBEAT_INTERVAL
+            is_heartbeat = time_since_last > HEARTBEAT_INTERVAL or iteration == 0
 
             if not changes and not is_heartbeat:
                 logger.info("   No state changes detected; skipping publish")
@@ -287,7 +365,7 @@ def main():
         mqtt_connection.disconnect()
 
     except Exception as e:
-        logger.error(f"\nERROR: {str(e)}")
+        logger.error(f"\nERROR: {repr(e)}")
         logger.error("=" * 60)
         sys.exit(1)
     finally:
