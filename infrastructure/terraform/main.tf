@@ -764,3 +764,212 @@ resource "aws_iam_user_policy_attachment" "ci_user_lambda_policy" {
   policy_arn = "arn:aws:iam::aws:policy/AWSLambda_FullAccess"
 }
 
+
+# ==============================================================================
+# Cognito Authentication
+# ==============================================================================
+resource "aws_cognito_user_pool" "admin_pool" {
+  name = "teraspot-admin-pool-${var.environment}"
+
+  password_policy {
+    minimum_length    = 8
+    require_lowercase = true
+    require_numbers   = true
+    require_symbols   = false
+    require_uppercase = true
+  }
+
+  admin_create_user_config {
+    allow_admin_create_user_only = true
+  }
+}
+
+resource "aws_cognito_user_pool_client" "admin_client" {
+  name = "teraspot-admin-client-${var.environment}"
+  user_pool_id = aws_cognito_user_pool.admin_pool.id
+  
+  explicit_auth_flows = [
+    "ALLOW_USER_PASSWORD_AUTH",
+    "ALLOW_REFRESH_TOKEN_AUTH",
+    "ALLOW_USER_SRP_AUTH"
+  ]
+}
+
+# ==============================================================================
+# WebSocket Infrastructure
+# ==============================================================================
+
+# 1. DynamoDB Connections Table
+resource "aws_dynamodb_table" "connections_table" {
+  name           = "teraspot-connections-${var.environment}"
+  billing_mode   = "PAY_PER_REQUEST"
+  hash_key       = "connection_id"
+
+  attribute {
+    name = "connection_id"
+    type = "S"
+  }
+
+  tags = {
+    Environment = var.environment
+  }
+}
+
+# 2. WebSocket API Gateway
+resource "aws_apigatewayv2_api" "websocket_api" {
+  name                       = "teraspot-websocket-api-${var.environment}"
+  protocol_type              = "WEBSOCKET"
+  route_selection_expression = "$request.body.action"
+}
+
+# 3. Lambdas for Connection Management
+
+# --- Connect Lambda ---
+data "archive_file" "ws_connect_zip" {
+  type        = "zip"
+  source_file = "${path.module}/../../backend/lambdas/ws_connect/lambda_function.py"
+  output_path = "${path.module}/ws_connect.zip"
+}
+
+resource "aws_iam_role" "ws_connect_role" {
+  name = "teraspot_ws_connect_role"
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17", Statement = [{ Action = "sts:AssumeRole", Effect = "Allow", Principal = { Service = "lambda.amazonaws.com" } }]
+  })
+}
+
+resource "aws_iam_role_policy" "ws_connect_policy" {
+  name = "teraspot_ws_connect_policy"
+  role = aws_iam_role.ws_connect_role.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      { Effect = "Allow", Action = ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"], Resource = "arn:aws:logs:*:*:*" },
+      { Effect = "Allow", Action = ["dynamodb:PutItem"], Resource = aws_dynamodb_table.connections_table.arn }
+    ]
+  })
+}
+
+resource "aws_lambda_function" "ws_connect" {
+  filename         = data.archive_file.ws_connect_zip.output_path
+  function_name    = "teraspot-ws-connect"
+  role             = aws_iam_role.ws_connect_role.arn
+  handler          = "lambda_function.lambda_handler"
+  source_code_hash = data.archive_file.ws_connect_zip.output_base64sha256
+  runtime          = "python3.12"
+  environment {
+    variables = {
+      CONNECTIONS_TABLE = aws_dynamodb_table.connections_table.name
+    }
+  }
+}
+
+# --- Disconnect Lambda ---
+data "archive_file" "ws_disconnect_zip" {
+  type        = "zip"
+  source_file = "${path.module}/../../backend/lambdas/ws_disconnect/lambda_function.py"
+  output_path = "${path.module}/ws_disconnect.zip"
+}
+
+resource "aws_iam_role" "ws_disconnect_role" {
+  name = "teraspot_ws_disconnect_role"
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17", Statement = [{ Action = "sts:AssumeRole", Effect = "Allow", Principal = { Service = "lambda.amazonaws.com" } }]
+  })
+}
+
+resource "aws_iam_role_policy" "ws_disconnect_policy" {
+  name = "teraspot_ws_disconnect_policy"
+  role = aws_iam_role.ws_disconnect_role.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      { Effect = "Allow", Action = ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"], Resource = "arn:aws:logs:*:*:*" },
+      { Effect = "Allow", Action = ["dynamodb:DeleteItem"], Resource = aws_dynamodb_table.connections_table.arn }
+    ]
+  })
+}
+
+resource "aws_lambda_function" "ws_disconnect" {
+  filename         = data.archive_file.ws_disconnect_zip.output_path
+  function_name    = "teraspot-ws-disconnect"
+  role             = aws_iam_role.ws_disconnect_role.arn
+  handler          = "lambda_function.lambda_handler"
+  source_code_hash = data.archive_file.ws_disconnect_zip.output_base64sha256
+  runtime          = "python3.12"
+  environment {
+    variables = {
+      CONNECTIONS_TABLE = aws_dynamodb_table.connections_table.name
+    }
+  }
+}
+
+# 4. API Gateway Integrations & Routes
+
+# $connect
+resource "aws_apigatewayv2_integration" "ws_connect_integration" {
+  api_id           = aws_apigatewayv2_api.websocket_api.id
+  integration_type = "AWS_PROXY"
+  integration_uri  = aws_lambda_function.ws_connect.invoke_arn
+}
+
+resource "aws_apigatewayv2_route" "ws_connect_route" {
+  api_id    = aws_apigatewayv2_api.websocket_api.id
+  route_key = "$connect"
+  target    = "integrations/${aws_apigatewayv2_integration.ws_connect_integration.id}"
+}
+
+resource "aws_lambda_permission" "apigw_ws_connect" {
+  statement_id  = "AllowExecutionFromAPIGateway"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.ws_connect.function_name
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${aws_apigatewayv2_api.websocket_api.execution_arn}/*/*"
+}
+
+# $disconnect
+resource "aws_apigatewayv2_integration" "ws_disconnect_integration" {
+  api_id           = aws_apigatewayv2_api.websocket_api.id
+  integration_type = "AWS_PROXY"
+  integration_uri  = aws_lambda_function.ws_disconnect.invoke_arn
+}
+
+resource "aws_apigatewayv2_route" "ws_disconnect_route" {
+  api_id    = aws_apigatewayv2_api.websocket_api.id
+  route_key = "$disconnect"
+  target    = "integrations/${aws_apigatewayv2_integration.ws_disconnect_integration.id}"
+}
+
+resource "aws_lambda_permission" "apigw_ws_disconnect" {
+  statement_id  = "AllowExecutionFromAPIGateway"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.ws_disconnect.function_name
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${aws_apigatewayv2_api.websocket_api.execution_arn}/*/*"
+}
+
+# 5. Deployment & Stage
+resource "aws_apigatewayv2_stage" "ws_stage" {
+  api_id      = aws_apigatewayv2_api.websocket_api.id
+  name        = var.environment
+  auto_deploy = true
+}
+
+# ==============================================================================
+# Outputs
+# ==============================================================================
+output "cognito_user_pool_id" {
+  value = aws_cognito_user_pool.admin_pool.id
+}
+
+output "cognito_client_id" {
+  value = aws_cognito_user_pool_client.admin_client.id
+}
+
+output "websocket_url" {
+  value = aws_apigatewayv2_stage.ws_stage.invoke_url
+}
+
+output "websocket_callback_url" {
+  value = replace(aws_apigatewayv2_stage.ws_stage.invoke_url, "wss://", "https://")
+}
