@@ -24,9 +24,56 @@ export default function HomeScreen() {
 
   useEffect(() => {
     loadConfig();
-    const interval = setInterval(fetchStatus, 2000);
-    return () => clearInterval(interval);
-  }, []); // loadConfig is defined inside component, so we can't easily add it without useCallback or moving it out. Leaving empty array is intentional for mount-only effect, suppressing warning would be better but for now this is fine. 
+
+    const wsUrl = process.env.EXPO_PUBLIC_WEBSOCKET_URL;
+    if (!wsUrl) {
+      console.warn("WebSocket URL not configured");
+      return;
+    }
+
+    let ws: WebSocket | null = null;
+    let reconnectTimeout: NodeJS.Timeout;
+
+    const connect = () => {
+      ws = new WebSocket(wsUrl);
+
+      ws.onopen = () => {
+        console.log("Connected to WebSocket");
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const message = JSON.parse(event.data);
+          if (message.type === "UPDATE" && message.data) {
+            const { space_id, status } = message.data;
+            setStatuses((prev) => ({
+              ...prev,
+              [space_id]: status,
+            }));
+          }
+        } catch (e) {
+          console.error("Failed to parse WebSocket message", e);
+        }
+      };
+
+      ws.onclose = () => {
+        console.log("WebSocket disconnected, reconnecting...");
+        reconnectTimeout = setTimeout(connect, 3000);
+      };
+
+      ws.onerror = (e) => {
+        console.error("WebSocket error", e);
+        ws?.close();
+      };
+    };
+
+    connect();
+
+    return () => {
+      ws?.close();
+      clearTimeout(reconnectTimeout);
+    };
+  }, []);
 
   const loadConfig = async () => {
     try {
