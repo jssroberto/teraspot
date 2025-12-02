@@ -233,7 +233,6 @@ class YOLOProcessor:
                                 "confidence": float(conf) if conf is not None else None,
                             }
                         )
-                        logger.info(f"   -> Detected object at {center} with conf {conf:.2f}")
 
                 # Accumulate votes if ROIs are defined
                 if self._roi_spaces:
