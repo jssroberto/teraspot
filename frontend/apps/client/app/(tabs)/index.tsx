@@ -11,7 +11,7 @@ import {
 } from "react-native";
 import Svg, { Polygon, Text as SvgText } from "react-native-svg";
 
-const DEVICE_ID = "TeraSpot-edge-device"; // Hardcoded for demo
+const DEVICE_ID = "TeraSpot-Processor"; // Hardcoded for demo
 
 export default function HomeScreen() {
   const [polygons, setPolygons] = useState<RoiSpace[]>([]);
@@ -26,7 +26,7 @@ export default function HomeScreen() {
     loadConfig();
     const interval = setInterval(fetchStatus, 2000);
     return () => clearInterval(interval);
-  }, []); // loadConfig is defined inside component, so we can't easily add it without useCallback or moving it out. Leaving empty array is intentional for mount-only effect, suppressing warning would be better but for now this is fine.
+  }, []); // loadConfig is defined inside component, so we can't easily add it without useCallback or moving it out. Leaving empty array is intentional for mount-only effect, suppressing warning would be better but for now this is fine. 
 
   const loadConfig = async () => {
     try {

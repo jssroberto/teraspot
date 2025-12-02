@@ -286,6 +286,8 @@ def main():
             if iteration > 0:
                 logger.info(f"\nWaiting {args.interval} seconds before next message...")
                 time.sleep(args.interval)
+                if yolo:
+                    yolo.advance_video_time(args.interval)
 
             logger.info(f"\nMessage {iteration + 1}")
 

@@ -123,7 +123,31 @@ class YOLOProcessor:
         self.cap = cap
         self.video_path = video_path
         self.source_type = "video"
-        logger.info(f"Video source set to: {video_path}")
+        
+        # Get FPS
+        self.fps = self.cap.get(cv2.CAP_PROP_FPS)
+        if not self.fps or self.fps <= 0:
+            self.fps = 30.0
+            logger.warning(f"Could not determine FPS, defaulting to {self.fps}")
+            
+        logger.info(f"Video source set to: {video_path} (FPS: {self.fps:.2f})")
+
+    def advance_video_time(self, seconds):
+        """Skip frames to simulate time passing in a video file"""
+        if self.source_type == "video" and self.cap:
+            frames_to_skip = int(seconds * self.fps)
+            if frames_to_skip > 0:
+                current_frame = self.cap.get(cv2.CAP_PROP_POS_FRAMES)
+                total_frames = self.cap.get(cv2.CAP_PROP_FRAME_COUNT)
+                
+                new_pos = current_frame + frames_to_skip
+                
+                # Handle loop if we go past end
+                if total_frames > 0:
+                    new_pos = new_pos % total_frames
+                    
+                self.cap.set(cv2.CAP_PROP_POS_FRAMES, new_pos)
+                logger.debug(f"Advanced video by {seconds}s ({frames_to_skip} frames) to frame {int(new_pos)}")
 
     def cleanup(self):
         """Release any open capture resources"""
