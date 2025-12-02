@@ -2,7 +2,7 @@ name: Build and Push Fog Image
 
 on:
   push:
-    branches: ["dev"]
+    branches: ["main"]
     paths:
       - "fog/**"
       - ".github/workflows/fog-deploy.yml"
