@@ -23,6 +23,31 @@ export default function HomeScreen() {
   const ASPECT_RATIO = 16 / 9;
 
   useEffect(() => {
+    const fetchStatus = async () => {
+      try {
+        const spaces = await getParkingStatus();
+        const statusMap: Record<string, string> = {};
+        spaces.forEach((space) => {
+          statusMap[space.space_id] = space.status;
+        });
+        setStatuses(statusMap);
+      } catch (error) {
+        console.error("Failed to fetch status", error);
+      }
+    };
+
+    const loadConfig = async () => {
+      try {
+        const spaces = await getRoiConfig(DEVICE_ID);
+        setPolygons(spaces);
+        await fetchStatus();
+      } catch (error) {
+        console.error("Failed to load config", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
     loadConfig();
 
     const wsUrl = process.env.EXPO_PUBLIC_WEBSOCKET_URL;
@@ -32,7 +57,7 @@ export default function HomeScreen() {
     }
 
     let ws: WebSocket | null = null;
-    let reconnectTimeout: NodeJS.Timeout;
+    let reconnectTimeout: ReturnType<typeof setTimeout>;
 
     const connect = () => {
       ws = new WebSocket(wsUrl);
@@ -74,31 +99,6 @@ export default function HomeScreen() {
       clearTimeout(reconnectTimeout);
     };
   }, []);
-
-  const loadConfig = async () => {
-    try {
-      const spaces = await getRoiConfig(DEVICE_ID);
-      setPolygons(spaces);
-      await fetchStatus();
-    } catch (error) {
-      console.error("Failed to load config", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchStatus = async () => {
-    try {
-      const spaces = await getParkingStatus();
-      const statusMap: Record<string, string> = {};
-      spaces.forEach((space) => {
-        statusMap[space.space_id] = space.status;
-      });
-      setStatuses(statusMap);
-    } catch (error) {
-      console.error("Failed to fetch status", error);
-    }
-  };
 
   const handleLayout = (event: any) => {
     const { width, height } = event.nativeEvent.layout;
