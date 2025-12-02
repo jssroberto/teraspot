@@ -1,7 +1,8 @@
-import React from "react";
-import { StyleSheet, View, Dimensions } from "react-native";
-import Svg, { Rect, Line, Text as SvgText } from "react-native-svg";
+import React, { useState } from "react";
+import { StyleSheet, View } from "react-native";
+import Svg, { Rect, Line, Text as SvgText, G } from "react-native-svg";
 import { ThemedText } from "./themed-text";
+import { useColorScheme } from "@/hooks/use-color-scheme";
 
 interface PeakHoursChartProps {
     hourlyBreakdown: Record<string, number>;
@@ -12,9 +13,18 @@ export function PeakHoursChart({
     hourlyBreakdown,
     height = 200,
 }: PeakHoursChartProps) {
-    const screenWidth = Dimensions.get("window").width;
-    const chartWidth = screenWidth - 60;
-    const chartHeight = height - 40;
+    const [containerWidth, setContainerWidth] = useState(300);
+    const colorScheme = useColorScheme();
+
+    // Calculate chart dimensions with proper padding
+    const padding = { left: 10, right: 10, top: 10, bottom: 30 };
+    const chartWidth = Math.max(containerWidth - padding.left - padding.right, 100);
+    const chartHeight = height - padding.top - padding.bottom;
+
+    // Dark mode colors
+    const isDark = colorScheme === 'dark';
+    const gridColor = isDark ? '#333' : '#E0E0E0';
+    const textColor = isDark ? '#999' : '#666';
 
     if (!hourlyBreakdown || Object.keys(hourlyBreakdown).length === 0) {
         return (
@@ -29,70 +39,88 @@ export function PeakHoursChart({
     const maxValue = 100;
 
     const getBarColor = (value: number) => {
-        if (value >= 90) return "#F44336"; // Red
-        if (value >= 60) return "#FF9800"; // Orange/Yellow
-        return "#4CAF50"; // Green
+        if (isDark) {
+            // Dark mode colors - slightly muted
+            if (value >= 90) return "#EF4444"; // Red-500
+            if (value >= 60) return "#F59E0B"; // Amber-500
+            return "#10B981"; // Emerald-500
+        } else {
+            // Light mode colors
+            if (value >= 90) return "#F44336"; // Red
+            if (value >= 60) return "#FF9800"; // Orange
+            return "#4CAF50"; // Green
+        }
     };
 
     return (
-        <View style={styles.container}>
-            <Svg width={chartWidth} height={height}>
-                {/* Grid lines */}
-                {[0, 25, 50, 75, 100].map((value) => {
-                    const y = chartHeight - (value / maxValue) * chartHeight;
-                    return (
-                        <Line
-                            key={value}
-                            x1={0}
-                            y1={y}
-                            x2={chartWidth}
-                            y2={y}
-                            stroke="#E0E0E0"
-                            strokeWidth={1}
-                            strokeDasharray="4,4"
-                        />
-                    );
-                })}
-
-                {/* Bars */}
-                {hours.map((hour, index) => {
-                    const value = hourlyBreakdown[hour] || 0;
-                    const barHeight = (value / maxValue) * chartHeight;
-                    const x = index * barWidth;
-                    const y = chartHeight - barHeight;
-
-                    return (
-                        <Rect
-                            key={hour}
-                            x={x + barWidth * 0.1}
-                            y={y}
-                            width={barWidth * 0.8}
-                            height={barHeight}
-                            fill={getBarColor(value)}
-                            opacity={0.8}
-                        />
-                    );
-                })}
-
-                {/* X-axis labels (show every 3 hours) */}
-                {hours
-                    .filter((_, i) => i % 3 === 0)
-                    .map((hour, index) => {
-                        const actualIndex = parseInt(hour);
-                        const x = actualIndex * barWidth + barWidth / 2;
+        <View
+            style={styles.container}
+            onLayout={(event) => {
+                const { width } = event.nativeEvent.layout;
+                setContainerWidth(width);
+            }}
+        >
+            <Svg width={containerWidth} height={height}>
+                <G transform={`translate(${padding.left}, ${padding.top})`}>
+                    {/* Grid lines - only show 3 lines to reduce clutter */}
+                    {[0, 50, 100].map((value) => {
+                        const y = chartHeight - (value / maxValue) * chartHeight;
                         return (
-                            <SvgText
-                                key={hour}
-                                x={x}
-                                y={chartHeight + 20}
-                                fontSize={10}
-                                fill="#666"
-                                textAnchor="middle"
-                            >
-                                {hour}h
-                            </SvgText>
+                            <Line
+                                key={value}
+                                x1={0}
+                                y1={y}
+                                x2={chartWidth}
+                                y2={y}
+                                stroke={gridColor}
+                                strokeWidth={1}
+                                strokeDasharray="4,4"
+                                opacity={0.5}
+                            />
                         );
                     })}
+
+                    {/* Bars */}
+                    {hours.map((hour, index) => {
+                        const value = hourlyBreakdown[hour] || 0;
+                        const barHeight = (value / maxValue) * chartHeight;
+                        const x = index * barWidth;
+                        const y = chartHeight - barHeight;
+
+                        return (
+                            <Rect
+                                key={hour}
+                                x={x + barWidth * 0.15}
+                                y={y}
+                                width={barWidth * 0.7}
+                                height={Math.max(barHeight, 0)}
+                                fill={getBarColor(value)}
+                                opacity={0.85}
+                                rx={1}
+                            />
+                        );
+                    })}
+
+                    {/* X-axis labels (show every 3 hours) */}
+                    {hours
+                        .filter((_, i) => i % 3 === 0)
+                        .map((hour) => {
+                            const actualIndex = parseInt(hour);
+                            const x = actualIndex * barWidth + barWidth / 2;
+                            return (
+                                <SvgText
+                                    key={hour}
+                                    x={x}
+                                    y={chartHeight + 18}
+                                    fontSize={9}
+                                    fill={textColor}
+                                    textAnchor="middle"
+                                >
+                                    {hour}h
+                                </SvgText>
+                            );
+                        })}
+                </G>
             </Svg>
         </View>
     );
@@ -100,7 +128,7 @@ export function PeakHoursChart({
 
 const styles = StyleSheet.create({
     container: {
-        paddingVertical: 10,
+        width: '100%',
         alignItems: "center",
     },
     noData: {

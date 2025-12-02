@@ -12,12 +12,25 @@ import {
     ScrollView,
     StyleSheet,
     View,
+    useWindowDimensions,
+    Platform,
 } from "react-native";
 
 export default function DashboardScreen() {
     const [kpiData, setKpiData] = useState<KPIResponse | null>(null);
     const [refreshing, setRefreshing] = useState(false);
     const [loading, setLoading] = useState(true);
+    const { width: windowWidth } = useWindowDimensions();
+
+    // Determine grid columns based on screen width
+    const getGridColumns = () => {
+        if (windowWidth >= 1200) return 4; // Desktop: 4 columns
+        if (windowWidth >= 768) return 3;  // Tablet: 3 columns
+        if (windowWidth >= 600) return 2;  // Small tablet: 2 columns
+        return 1; // Mobile phone: 1 column
+    };
+
+    const gridColumns = getGridColumns();
 
     const fetchKPIData = async () => {
         setRefreshing(true);
@@ -117,172 +130,177 @@ export default function DashboardScreen() {
                 refreshControl={
                     <RefreshControl refreshing={refreshing} onRefresh={fetchKPIData} />
                 }
-                contentContainerStyle={styles.scrollContent}
+                contentContainerStyle={[
+                    styles.scrollContent,
+                    windowWidth >= 1400 && styles.scrollContentWide,
+                ]}
             >
-                <View style={styles.header}>
-                    <View>
-                        <ThemedText type="title">TeraSpot Dashboard</ThemedText>
-                        <ThemedText style={styles.subtitle}>
-                            Sistema Inteligente de Gestión de Estacionamientos
-                        </ThemedText>
+                <View style={[styles.contentContainer, windowWidth >= 1400 && styles.contentContainerWide]}>
+                    <View style={[styles.header, windowWidth < 600 && styles.headerMobile]}>
+                        <View style={{ flex: 1 }}>
+                            <ThemedText type="title">TeraSpot Dashboard</ThemedText>
+                            <ThemedText style={styles.subtitle}>
+                                Sistema Inteligente de Gestión de Estacionamientos
+                            </ThemedText>
+                        </View>
+                        <ThemedText style={styles.systemStatus}>SISTEMA OK</ThemedText>
                     </View>
-                    <ThemedText style={styles.systemStatus}>SISTEMA OK</ThemedText>
-                </View>
 
-                {/* KPI Cards Grid */}
-                <View style={styles.grid}>
-                    {/* Vacant Spaces */}
-                    <View style={styles.gridItem}>
-                        <KPICard
-                            title="ESPACIOS DISPONIBLES"
-                            value={level_1_operational.vacant_spaces.total_vacant}
-                            subtitle={Object.entries(
-                                level_1_operational.vacant_spaces.by_zone
-                            )
-                                .map(([zone, count]) => `${zone}: ${count}`)
-                                .join(", ")}
-                            status={
-                                level_1_operational.vacant_spaces.color_code === "GREEN"
-                                    ? "success"
-                                    : level_1_operational.vacant_spaces.color_code === "YELLOW"
-                                        ? "warning"
-                                        : "error"
-                            }
+                    {/* KPI Cards Grid */}
+                    <View style={[styles.grid, { marginHorizontal: -7.5 }]}>
+                        {/* Vacant Spaces */}
+                        <View style={[styles.gridItem, { width: `${100 / gridColumns}%` }]}>
+                            <KPICard
+                                title="ESPACIOS DISPONIBLES"
+                                value={level_1_operational.vacant_spaces.total_vacant}
+                                subtitle={Object.entries(
+                                    level_1_operational.vacant_spaces.by_zone
+                                )
+                                    .map(([zone, count]) => `${zone}: ${count}`)
+                                    .join(", ")}
+                                status={
+                                    level_1_operational.vacant_spaces.color_code === "GREEN"
+                                        ? "success"
+                                        : level_1_operational.vacant_spaces.color_code === "YELLOW"
+                                            ? "warning"
+                                            : "error"
+                                }
+                            />
+                        </View>
+
+                        {/* Occupancy Rate */}
+                        <View style={[styles.gridItem, { width: `${100 / gridColumns}%` }]}>
+                            <KPICard title="OCUPACIÓN ACTUAL">
+                                <OccupancyGauge
+                                    percentage={level_1_operational.occupancy_rate.occupancy_rate}
+                                    status={level_1_operational.occupancy_rate.status}
+                                />
+                                <ThemedText style={styles.gaugeSubtitle}>
+                                    {level_1_operational.occupancy_rate.occupied_spaces} /{" "}
+                                    {level_1_operational.occupancy_rate.total_spaces} espacios
+                                </ThemedText>
+                            </KPICard>
+                        </View>
+
+                        {/* System Health */}
+                        <View style={[styles.gridItem, { width: `${100 / gridColumns}%` }]}>
+                            <KPICard
+                                title="SALUD DEL SISTEMA"
+                                value={`${level_2_performance.system_health.uptime_percentage.toFixed(0)}%`}
+                                subtitle={`Uptime Dispositivos`}
+                                status={getHealthStatus(level_2_performance.system_health.status)}
+                            >
+                                <ThemedText
+                                    style={[
+                                        styles.value,
+                                        {
+                                            color:
+                                                level_2_performance.system_health.status === "HEALTHY"
+                                                    ? "#4CAF50"
+                                                    : level_2_performance.system_health.status ===
+                                                        "DEGRADED"
+                                                        ? "#FF9800"
+                                                        : "#F44336",
+                                        },
+                                    ]}
+                                >
+                                    {level_2_performance.system_health.uptime_percentage.toFixed(
+                                        0
+                                    )}
+                                    %
+                                </ThemedText>
+                                <ThemedText style={styles.subtitle}>
+                                    {level_2_performance.system_health.active_devices} /{" "}
+                                    {level_2_performance.system_health.total_devices} activos
+                                </ThemedText>
+                                {level_2_performance.system_health.status === "HEALTHY" ? (
+                                    <ThemedText style={styles.statusLabel}>HEALTHY</ThemedText>
+                                ) : (
+                                    <ThemedText style={styles.statusLabel}>
+                                        {level_2_performance.system_health.status}
+                                    </ThemedText>
+                                )}
+                            </KPICard>
+                        </View>
+
+                        {/* Detection Confidence */}
+                        <View style={[styles.gridItem, { width: `${100 / gridColumns}%` }]}>
+                            <KPICard
+                                title="CONFIANZA IA (YOLO)"
+                                value={
+                                    level_2_performance.detection_confidence.sample_size > 0
+                                        ? `${(level_2_performance.detection_confidence.average_confidence * 100).toFixed(1)}%`
+                                        : "N/A"
+                                }
+                                subtitle="Calidad de Detección"
+                                status={getConfidenceStatus(
+                                    level_2_performance.detection_confidence.quality_status
+                                )}
+                            >
+                                <ThemedText
+                                    style={[
+                                        styles.value,
+                                        {
+                                            color:
+                                                level_2_performance.detection_confidence.quality_status ===
+                                                    "EXCELLENT" ||
+                                                    level_2_performance.detection_confidence.quality_status ===
+                                                    "GOOD"
+                                                    ? "#4CAF50"
+                                                    : level_2_performance.detection_confidence
+                                                        .quality_status === "ACCEPTABLE"
+                                                        ? "#FF9800"
+                                                        : "#666",
+                                        },
+                                    ]}
+                                >
+                                    {level_2_performance.detection_confidence.sample_size > 0
+                                        ? `${(level_2_performance.detection_confidence.average_confidence * 100).toFixed(1)}%`
+                                        : "N/A"}
+                                </ThemedText>
+                                <ThemedText style={styles.subtitle}>
+                                    Muestras: {level_2_performance.detection_confidence.sample_size}
+                                </ThemedText>
+                                <ThemedText style={styles.statusLabel}>
+                                    {level_2_performance.detection_confidence.quality_status}
+                                </ThemedText>
+                            </KPICard>
+                        </View>
+                    </View>
+
+                    {/* Occupancy Trend Chart */}
+                    <View style={styles.chartSection}>
+                        <ThemedText style={styles.chartTitle}>
+                            TENDENCIA DE OCUPACIÓN (ÚLTIMAS 24H)
+                        </ThemedText>
+                        <OccupancyTrendChart
+                            data={level_3_analytics.occupancy_trend.trend_data}
                         />
                     </View>
 
-                    {/* Occupancy Rate */}
-                    <View style={styles.gridItem}>
-                        <KPICard title="OCUPACIÓN ACTUAL">
-                            <OccupancyGauge
-                                percentage={level_1_operational.occupancy_rate.occupancy_rate}
-                                status={level_1_operational.occupancy_rate.status}
-                            />
-                            <ThemedText style={styles.gaugeSubtitle}>
-                                {level_1_operational.occupancy_rate.occupied_spaces} /{" "}
-                                {level_1_operational.occupancy_rate.total_spaces} espacios
-                            </ThemedText>
-                        </KPICard>
+                    {/* Peak Hours Chart */}
+                    <View style={styles.chartSection}>
+                        <ThemedText style={styles.chartTitle}>
+                            ANÁLISIS DE HORAS PICO (PROMEDIO HISTÓRICO)
+                        </ThemedText>
+                        <PeakHoursChart
+                            hourlyBreakdown={level_3_analytics.peak_hours.hourly_breakdown}
+                        />
+                        <ThemedText style={styles.chartSubtitle}>
+                            Datos de los últimos {level_3_analytics.peak_hours.days_analyzed}{" "}
+                            días
+                        </ThemedText>
                     </View>
 
-                    {/* System Health */}
-                    <View style={styles.gridItem}>
-                        <KPICard
-                            title="SALUD DEL SISTEMA"
-                            value={`${level_2_performance.system_health.uptime_percentage.toFixed(0)}%`}
-                            subtitle={`Uptime Dispositivos`}
-                            status={getHealthStatus(level_2_performance.system_health.status)}
-                        >
-                            <ThemedText
-                                style={[
-                                    styles.value,
-                                    {
-                                        color:
-                                            level_2_performance.system_health.status === "HEALTHY"
-                                                ? "#4CAF50"
-                                                : level_2_performance.system_health.status ===
-                                                    "DEGRADED"
-                                                    ? "#FF9800"
-                                                    : "#F44336",
-                                    },
-                                ]}
-                            >
-                                {level_2_performance.system_health.uptime_percentage.toFixed(
-                                    0
-                                )}
-                                %
-                            </ThemedText>
-                            <ThemedText style={styles.subtitle}>
-                                {level_2_performance.system_health.active_devices} /{" "}
-                                {level_2_performance.system_health.total_devices} activos
-                            </ThemedText>
-                            {level_2_performance.system_health.status === "HEALTHY" ? (
-                                <ThemedText style={styles.statusLabel}>HEALTHY</ThemedText>
-                            ) : (
-                                <ThemedText style={styles.statusLabel}>
-                                    {level_2_performance.system_health.status}
-                                </ThemedText>
-                            )}
-                        </KPICard>
+                    {/* Footer Info */}
+                    <View style={styles.footer}>
+                        <ThemedText style={styles.footerText}>
+                            Última actualización: {formatTimestamp(kpiData.metadata.generated_at)}
+                        </ThemedText>
+                        <ThemedText style={styles.footerText}>
+                            Versión: {kpiData.metadata.version}
+                        </ThemedText>
                     </View>
-
-                    {/* Detection Confidence */}
-                    <View style={styles.gridItem}>
-                        <KPICard
-                            title="CONFIANZA IA (YOLO)"
-                            value={
-                                level_2_performance.detection_confidence.sample_size > 0
-                                    ? `${(level_2_performance.detection_confidence.average_confidence * 100).toFixed(1)}%`
-                                    : "N/A"
-                            }
-                            subtitle="Calidad de Detección"
-                            status={getConfidenceStatus(
-                                level_2_performance.detection_confidence.quality_status
-                            )}
-                        >
-                            <ThemedText
-                                style={[
-                                    styles.value,
-                                    {
-                                        color:
-                                            level_2_performance.detection_confidence.quality_status ===
-                                                "EXCELLENT" ||
-                                                level_2_performance.detection_confidence.quality_status ===
-                                                "GOOD"
-                                                ? "#4CAF50"
-                                                : level_2_performance.detection_confidence
-                                                    .quality_status === "ACCEPTABLE"
-                                                    ? "#FF9800"
-                                                    : "#666",
-                                    },
-                                ]}
-                            >
-                                {level_2_performance.detection_confidence.sample_size > 0
-                                    ? `${(level_2_performance.detection_confidence.average_confidence * 100).toFixed(1)}%`
-                                    : "N/A"}
-                            </ThemedText>
-                            <ThemedText style={styles.subtitle}>
-                                Muestras: {level_2_performance.detection_confidence.sample_size}
-                            </ThemedText>
-                            <ThemedText style={styles.statusLabel}>
-                                {level_2_performance.detection_confidence.quality_status}
-                            </ThemedText>
-                        </KPICard>
-                    </View>
-                </View>
-
-                {/* Occupancy Trend Chart */}
-                <View style={styles.chartSection}>
-                    <ThemedText style={styles.chartTitle}>
-                        TENDENCIA DE OCUPACIÓN (ÚLTIMAS 24H)
-                    </ThemedText>
-                    <OccupancyTrendChart
-                        data={level_3_analytics.occupancy_trend.trend_data}
-                    />
-                </View>
-
-                {/* Peak Hours Chart */}
-                <View style={styles.chartSection}>
-                    <ThemedText style={styles.chartTitle}>
-                        ANÁLISIS DE HORAS PICO (PROMEDIO HISTÓRICO)
-                    </ThemedText>
-                    <PeakHoursChart
-                        hourlyBreakdown={level_3_analytics.peak_hours.hourly_breakdown}
-                    />
-                    <ThemedText style={styles.chartSubtitle}>
-                        Datos de los últimos {level_3_analytics.peak_hours.days_analyzed}{" "}
-                        días
-                    </ThemedText>
-                </View>
-
-                {/* Footer Info */}
-                <View style={styles.footer}>
-                    <ThemedText style={styles.footerText}>
-                        Última actualización: {formatTimestamp(kpiData.metadata.generated_at)}
-                    </ThemedText>
-                    <ThemedText style={styles.footerText}>
-                        Versión: {kpiData.metadata.version}
-                    </ThemedText>
                 </View>
             </ScrollView>
         </ThemedView>
@@ -296,6 +314,18 @@ const styles = StyleSheet.create({
     scrollContent: {
         padding: 20,
         paddingBottom: 40,
+        alignItems: "center",
+    },
+    scrollContentWide: {
+        paddingHorizontal: 40,
+        paddingTop: 30,
+    },
+    contentContainer: {
+        width: "100%",
+        maxWidth: 1400,
+    },
+    contentContainerWide: {
+        maxWidth: 1600,
     },
     header: {
         flexDirection: "row",
@@ -303,6 +333,11 @@ const styles = StyleSheet.create({
         alignItems: "flex-start",
         marginBottom: 20,
         marginTop: 40,
+    },
+    headerMobile: {
+        flexDirection: "column",
+        alignItems: "flex-start",
+        gap: 12,
     },
     subtitle: {
         fontSize: 12,
@@ -321,10 +356,8 @@ const styles = StyleSheet.create({
     grid: {
         flexDirection: "row",
         flexWrap: "wrap",
-        marginHorizontal: -7.5,
     },
     gridItem: {
-        width: "50%",
         paddingHorizontal: 7.5,
     },
     gaugeSubtitle: {

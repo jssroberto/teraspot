@@ -1,8 +1,9 @@
-import React from "react";
-import { StyleSheet, View, Dimensions } from "react-native";
-import Svg, { Path, Line, Text as SvgText, Circle } from "react-native-svg";
+import React, { useState } from "react";
+import { StyleSheet, View } from "react-native";
+import Svg, { Path, Line, Text as SvgText, Circle, Defs, LinearGradient, Stop, G } from "react-native-svg";
 import { ThemedText } from "./themed-text";
 import { OccupancyTrendDataPoint } from "@repo/core";
+import { useColorScheme } from "@/hooks/use-color-scheme";
 
 interface OccupancyTrendChartProps {
     data: OccupancyTrendDataPoint[];
@@ -11,11 +12,23 @@ interface OccupancyTrendChartProps {
 
 export function OccupancyTrendChart({
     data,
-    height = 250,
+    height = 220,
 }: OccupancyTrendChartProps) {
-    const screenWidth = Dimensions.get("window").width;
-    const chartWidth = screenWidth - 60; // Account for padding
-    const chartHeight = height - 60; // Account for labels
+    const [containerWidth, setContainerWidth] = useState(300);
+    const colorScheme = useColorScheme();
+
+    // Calculate chart dimensions with proper padding
+    const padding = { left: 10, right: 35, top: 10, bottom: 30 };
+    const chartWidth = Math.max(containerWidth - padding.left - padding.right, 100);
+    const chartHeight = height - padding.top - padding.bottom;
+
+    // Dark mode colors
+    const isDark = colorScheme === 'dark';
+    const gridColor = isDark ? '#333' : '#E0E0E0';
+    const textColor = isDark ? '#999' : '#666';
+    const lineColor = isDark ? '#60A5FA' : '#2196F3'; // Blue-400 for dark, blue-500 for light
+    const fillColor = isDark ? 'rgba(96, 165, 250, 0.15)' : 'rgba(33, 150, 243, 0.1)';
+    const pointStroke = isDark ? '#1F2937' : '#FFFFFF';
 
     if (!data || data.length === 0) {
         return (
@@ -41,7 +54,7 @@ export function OccupancyTrendChart({
 
     // Calculate points
     const points = validData.map((point, index) => {
-        const x = (index / (validData.length - 1)) * chartWidth;
+        const x = (index / Math.max(validData.length - 1, 1)) * chartWidth;
         const y = chartHeight - ((point.occupancy_rate - minY) / (maxY - minY)) * chartHeight;
         return { x, y, data: point };
     });
@@ -67,94 +80,111 @@ export function OccupancyTrendChart({
         return date.getHours().toString().padStart(2, "0") + "h";
     };
 
-    // Show every 4th hour label to avoid crowding
+    // Show fewer labels on small screens
+    const labelStep = containerWidth < 400 ? 6 : 4;
     const labelIndices = points
         .map((_, i) => i)
-        .filter((i) => i % 4 === 0 || i === points.length - 1);
+        .filter((i) => i % labelStep === 0 || i === points.length - 1);
 
     return (
-        <View style={styles.container}>
-            <Svg width={chartWidth + 40} height={height}>
-                {/* Grid lines */}
-                {[0, 25, 50, 75, 100].map((value) => {
-                    const y = chartHeight - ((value - minY) / (maxY - minY)) * chartHeight;
-                    return (
-                        <Line
-                            key={value}
-                            x1={0}
-                            y1={y}
-                            x2={chartWidth}
-                            y2={y}
-                            stroke="#E0E0E0"
-                            strokeWidth={1}
-                            strokeDasharray="4,4"
-                        />
-                    );
-                })}
+        <View
+            style={styles.container}
+            onLayout={(event) => {
+                const { width } = event.nativeEvent.layout;
+                setContainerWidth(width);
+            }}
+        >
+            <Svg width={containerWidth} height={height}>
+                <Defs>
+                    <LinearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
+                        <Stop offset="0" stopColor={lineColor} stopOpacity="0.3" />
+                        <Stop offset="1" stopColor={lineColor} stopOpacity="0.05" />
+                    </LinearGradient>
+                </Defs>
 
-                {/* Gradient fill */}
-                <Path
-                    d={fillPathData}
-                    fill="rgba(33, 150, 243, 0.1)"
-                    stroke="none"
-                />
+                <G transform={`translate(${padding.left}, ${padding.top})`}>
+                    {/* Grid lines */}
+                    {[0, 25, 50, 75, 100].map((value) => {
+                        const y = chartHeight - ((value - minY) / (maxY - minY)) * chartHeight;
+                        return (
+                            <Line
+                                key={value}
+                                x1={0}
+                                y1={y}
+                                x2={chartWidth}
+                                y2={y}
+                                stroke={gridColor}
+                                strokeWidth={1}
+                                strokeDasharray="4,4"
+                                opacity={0.5}
+                            />
+                        );
+                    })}
 
-                {/* Line */}
-                <Path
-                    d={pathData}
-                    fill="none"
-                    stroke="#2196F3"
-                    strokeWidth={3}
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                />
-
-                {/* Data points */}
-                {points.map((point, index) => (
-                    <Circle
-                        key={index}
-                        cx={point.x}
-                        cy={point.y}
-                        r={4}
-                        fill="#2196F3"
-                        stroke="#FFFFFF"
-                        strokeWidth={2}
+                    {/* Gradient fill */}
+                    <Path
+                        d={fillPathData}
+                        fill="url(#chartGradient)"
+                        stroke="none"
                     />
-                ))}
 
-                {/* X-axis labels */}
-                {labelIndices.map((index) => {
-                    const point = points[index];
-                    return (
-                        <SvgText
+                    {/* Line */}
+                    <Path
+                        d={pathData}
+                        fill="none"
+                        stroke={lineColor}
+                        strokeWidth={2.5}
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                    />
+
+                    {/* Data points */}
+                    {points.filter((_, i) => i % 2 === 0).map((point, index) => (
+                        <Circle
                             key={index}
-                            x={point.x}
-                            y={chartHeight + 20}
-                            fontSize={10}
-                            fill="#666"
-                            textAnchor="middle"
-                        >
-                            {formatHour(point.data.timestamp)}
-                        </SvgText>
-                    );
-                })}
+                            cx={point.x}
+                            cy={point.y}
+                            r={3}
+                            fill={lineColor}
+                            stroke={pointStroke}
+                            strokeWidth={1.5}
+                        />
+                    ))}
 
-                {/* Y-axis labels */}
-                {[0, 25, 50, 75, 100].map((value) => {
-                    const y = chartHeight - ((value - minY) / (maxY - minY)) * chartHeight;
-                    return (
-                        <SvgText
-                            key={value}
-                            x={chartWidth + 15}
-                            y={y + 4}
-                            fontSize={10}
-                            fill="#666"
-                            textAnchor="start"
-                        >
-                            {value}%
-                        </SvgText>
-                    );
-                })}
+                    {/* X-axis labels */}
+                    {labelIndices.map((index) => {
+                        const point = points[index];
+                        return (
+                            <SvgText
+                                key={index}
+                                x={point.x}
+                                y={chartHeight + 18}
+                                fontSize={9}
+                                fill={textColor}
+                                textAnchor="middle"
+                            >
+                                {formatHour(point.data.timestamp)}
+                            </SvgText>
+                        );
+                    })}
+
+                    {/* Y-axis labels */}
+                    {[0, 50, 100].map((value) => {
+                        const y = chartHeight - ((value - minY) / (maxY - minY)) * chartHeight;
+                        return (
+                            <SvgText
+                                key={value}
+                                x={chartWidth + 5}
+                                y={y + 3}
+                                fontSize={9}
+                                fill={textColor}
+                                textAnchor="start"
+                            >
+                                {value}%
+                            </SvgText>
+                        );
+                    })}
+                </G>
             </Svg>
         </View>
     );
@@ -162,7 +192,7 @@ export function OccupancyTrendChart({
 
 const styles = StyleSheet.create({
     container: {
-        paddingVertical: 10,
+        width: '100%',
         alignItems: "center",
     },
     noData: {
