@@ -10,8 +10,6 @@ from statistics import mean
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-
-
 dynamodb = boto3.resource('dynamodb', region_name='us-east-1')
 HISTORY_TABLE_NAME = os.getenv('HISTORY_TABLE', 'parking-history')
 CURRENT_TABLE_NAME = os.getenv('CURRENT_TABLE', 'parking-spaces-dev')
@@ -38,8 +36,8 @@ def get_current_occupancy_rate():
     """
     try:
         response = current_table.scan(
-            ProjectionExpression='space_id, #st',
-            ExpressionAttributeNames={'#st': 'status'}
+            ProjectionExpression='space_id, #st, #ts',
+            ExpressionAttributeNames={'#st': 'status', '#ts': 'timestamp'}
         )
         
         items = response.get('Items', [])
@@ -53,8 +51,10 @@ def get_current_occupancy_rate():
                 'available_spaces': 0,
                 'status': 'NO_DATA'
             }
-        
+
+        # Count occupied spaces based on last known status (trusting DB state)
         occupied_spaces = sum(1 for item in items if item.get('status') == 'occupied')
+
         vacant_spaces = total_spaces - occupied_spaces
         occupancy_rate = (occupied_spaces / total_spaces) * 100
         
@@ -90,15 +90,17 @@ def get_available_spaces_by_zone():
     Formula: Total Spaces - Occupied Spaces
     Broken down by zone and facility for better granularity
     Color code: Green >20, Yellow 5-20, Red <5
-    Status: ‘vacant’ indicates available space
+    Status: 'vacant' indicates available space
     """
     try:
         response = current_table.scan(
-            ProjectionExpression='space_id, #st, zone_id, facility_id',
-            ExpressionAttributeNames={'#st': 'status'}
+            ProjectionExpression='space_id, #st, zone_id, facility_id, #ts',
+            ExpressionAttributeNames={'#st': 'status', '#ts': 'timestamp'}
         )
         
         items = response.get('Items', [])
+        
+        # We count available spaces based on last known status 'vacant'
         vacant_items = [item for item in items if item.get('status') == 'vacant']
         
         total_vacant = len(vacant_items)
@@ -139,7 +141,7 @@ def get_available_spaces_by_zone():
 def check_critical_capacity_alert():
     """
     KPI 3: Critical Capacity Alert Status
-    Trigger condition: Occupancy rate ≥ 95%
+    Trigger condition: Occupancy rate >= 95%
     Enables proactive response from the operator
     """
     try:
@@ -152,7 +154,7 @@ def check_critical_capacity_alert():
         alert_active = occupancy_rate >= 95
         
         if alert_active:
-            logger.warning(f"⚠️ CRITICAL CAPACITY ALERT: {occupancy_rate}%")
+            logger.warning(f"CRITICAL CAPACITY ALERT: {occupancy_rate}%")
         
         return {
             'alert_active': alert_active,
@@ -175,7 +177,7 @@ def check_critical_capacity_alert():
 def get_average_detection_confidence(time_window_minutes=15):
     """
     KPI 4: Average Detection Confidence
-    Formula: Average(confidence_score) last 15 minutes
+    Formula: Average(confidence_score) of OCCUPIED spaces in last 15 minutes
     Validates accuracy of YOLO11s model (target: mAP50 96.7%)
     Ranges: >85% excellent, 75-85% acceptable, <75% requires investigation
     """
@@ -184,33 +186,52 @@ def get_average_detection_confidence(time_window_minutes=15):
         threshold_time = now - timedelta(minutes=time_window_minutes)
         
         response = current_table.scan(
-            ProjectionExpression='confidence, #ts',
-            ExpressionAttributeNames={'#ts': 'timestamp'}
+            ProjectionExpression='confidence, #ts, #st, space_id',
+            ExpressionAttributeNames={'#ts': 'timestamp', '#st': 'status'}
         )
         
         items = response.get('Items', [])
         recent_confidences = []
+        debug_stats = {'total': len(items), 'skipped_time': 0, 'skipped_vacant': 0, 'skipped_no_conf': 0, 'occupied_ids': []}
         
         for item in items:
             ts_str = item.get('timestamp')
             confidence = item.get('confidence')
+            status = item.get('status')
+            space_id = item.get('space_id')
             
-            if ts_str and confidence:
+            # Only consider occupied spaces for detection confidence
+            if status != 'occupied':
+                debug_stats['skipped_vacant'] += 1
+                continue
+            
+            debug_stats['occupied_ids'].append(space_id)
+
+            if ts_str and confidence is not None:
                 try:
                     ts_str = ts_str.replace('Z', '+00:00')
                     item_time = datetime.fromisoformat(ts_str)
                     
                     if item_time >= threshold_time:
                         recent_confidences.append(float(confidence))
+                    else:
+                        debug_stats['skipped_time'] += 1
+                        logger.debug(f"Stale data for {space_id}: {item_time} < {threshold_time}")
                 except ValueError:
                     continue
+            else:
+                debug_stats['skipped_no_conf'] += 1
+                logger.warning(f"Missing data for occupied space {space_id}: ts={ts_str}, conf={confidence}")
         
+        logger.info(f"Confidence Stats: {debug_stats} | Samples: {len(recent_confidences)}")
+
         if not recent_confidences:
             return {
                 'average_confidence': 0.0,
                 'sample_size': 0,
                 'quality_status': 'NO_DATA',
-                'time_window_minutes': time_window_minutes
+                'time_window_minutes': time_window_minutes,
+                'debug_info': debug_stats
             }
         
         avg_confidence = mean(recent_confidences) * 100
@@ -364,7 +385,7 @@ def get_system_health_device_uptime(inactive_threshold_minutes=5):
         status = 'HEALTHY' if uptime_percentage >= 90 else 'DEGRADED'
         
         if uptime_percentage < 90:
-            logger.warning(f"⚠️ System Health Degraded: {uptime_percentage:.2f}% uptime - Inactive: {inactive_devices}")
+            logger.warning(f"System Health Degraded: {uptime_percentage:.2f}% uptime - Inactive: {inactive_devices}")
         else:
             logger.info(f"System Health: {uptime_percentage:.2f}% ({active_devices}/{total_devices})")
         
@@ -374,17 +395,85 @@ def get_system_health_device_uptime(inactive_threshold_minutes=5):
             'total_devices': total_devices,
             'inactive_devices': inactive_devices,
             'status': status,
-            'inactive_threshold_minutes': inactive_threshold_minutes,
             'timestamp': datetime.now(timezone.utc).isoformat()
         }
     
     except Exception as e:
-        logger.error(f"Error calculating system health: {str(e)}")
+        logger.error(f"Error checking system health: {str(e)}")
+        return {'error': str(e)}
+
+
+def get_message_processing_latency(time_window_minutes=15):
+    """
+    KPI 7: Message Processing Latency
+    Formula: Average(processed_timestamp - created_timestamp)
+    Measures end-to-end system latency
+    Target: < 2 seconds for real-time updates
+    """
+    try:
+        now = datetime.now(timezone.utc)
+        threshold_time = now - timedelta(minutes=time_window_minutes)
+        
+        # Scan current table for recent updates
+        response = current_table.scan(
+            ProjectionExpression='#ts, #proc_ts',
+            ExpressionAttributeNames={
+                '#ts': 'timestamp',
+                '#proc_ts': 'processed_timestamp'
+            }
+        )
+        
+        items = response.get('Items', [])
+        latencies = []
+        
+        for item in items:
+            created_ts = item.get('timestamp')
+            processed_ts = item.get('processed_timestamp')
+            
+            if created_ts and processed_ts:
+                try:
+                    created_ts = created_ts.replace('Z', '+00:00')
+                    processed_ts = processed_ts.replace('Z', '+00:00')
+                    
+                    created_time = datetime.fromisoformat(created_ts)
+                    processed_time = datetime.fromisoformat(processed_ts)
+                    
+                    if created_time >= threshold_time:
+                        latency = (processed_time - created_time).total_seconds()
+                        if latency >= 0:
+                            latencies.append(latency)
+                except ValueError:
+                    continue
+        
+        if not latencies:
+            return {
+                'average_latency_seconds': 0.0,
+                'sample_size': 0,
+                'status': 'NO_DATA'
+            }
+        
+        avg_latency = mean(latencies)
+        max_latency = max(latencies)
+        
+        status = 'EXCELLENT' if avg_latency < 2 else 'ACCEPTABLE' if avg_latency < 5 else 'DEGRADED'
+        
+        logger.info(f"Msg Latency: {avg_latency:.3f}s (Max: {max_latency:.3f}s) - {status}")
+        
+        return {
+            'average_latency_seconds': round(avg_latency, 3),
+            'max_latency_seconds': round(max_latency, 3),
+            'sample_size': len(latencies),
+            'status': status,
+            'timestamp': datetime.now(timezone.utc).isoformat()
+        }
+    
+    except Exception as e:
+        logger.error(f"Error calculating message latency: {str(e)}")
         return {'error': str(e)}
 
 
 # ============================================================================
-# LEVEL 3: HISTORICAL AND PREDICTIVE ANALYSIS
+# LEVEL 3: ANALYTICS AND TRENDS
 # ============================================================================
 
 def calculate_average_parking_duration(days_back=7):
@@ -537,12 +626,10 @@ def get_peak_occupancy_hours(days_back=30):
                             key=lambda x: x[1], reverse=True)
         peak_hours = sorted_hours[:5]
         
-        logger.info(f"Peak Hours Analysis: Top 5 hours - {[f'{h}:00 ({p}%)' for h, p in peak_hours]}")
+        logger.info(f"Peak Hours: {[f'{h}:00 ({p}%)' for h, p in peak_hours]}")
         
         return {
-            'peak_hours': [{'hour': h, 'occupancy_percentage': p} 
-                          for h, p in peak_hours],
-            'hourly_breakdown': hourly_percentages,
+            'peak_hours': [{'hour': h, 'occupancy_percentage': p} for h, p in peak_hours],
             'days_analyzed': days_back,
             'timestamp': datetime.now(timezone.utc).isoformat()
         }
@@ -565,10 +652,7 @@ def get_occupancy_trend(hours_back=24, interval_minutes=60):
         
         response = history_table.scan(
             ProjectionExpression='space_id, #ts, #st',
-            ExpressionAttributeNames={
-                '#ts': 'timestamp',
-                '#st': 'status'
-            }
+            ExpressionAttributeNames={'#ts': 'timestamp', '#st': 'status'}
         )
         
         items = response.get('Items', [])
@@ -642,30 +726,19 @@ def lambda_handler(event, context):
     Examples of use:
     
     1. Request a specific KPI:
-       {“kpi”: “occupancy_rate”}
+       {"kpi": "occupancy_rate"}
     
     2. KPI with custom parameters:
-       {“kpi”: “detection_confidence”, ‘params’: {“time_window_minutes”: 30}}
+       {"kpi": "detection_confidence", "params": {"time_window_minutes": 30}}
     
     3. All KPIs (complete dashboard):
-       {“kpi”: “all”}
-    
-    Available KPIs:
-    - occupancy_rate: Current occupancy rate
-    - vacant_spaces: Available spaces by zone
-    - critical_capacity: Critical capacity alert
-    - detection_confidence: Average detection confidence
-    - low_confidence_rate: Low confidence event rate
-    - system_health: Device health/uptime
-    - parking_duration: Average parking duration
-    - peak_hours: Peak occupancy hours
-    - occupancy_trend: Occupancy trend (time series)
+       {"kpi": "all"}
     """
     try:
         kpi_requested = event.get('kpi', 'all').lower()
         params = event.get('params', {})
         
-        logger.info(f"📊 KPI Request: {kpi_requested} | Params: {params}")
+        logger.info(f"KPI Request: {kpi_requested} | Params: {params}")
         
         # Mapping available KPIs
         kpi_functions = {
@@ -682,6 +755,9 @@ def lambda_handler(event, context):
             'system_health': lambda: get_system_health_device_uptime(
                 params.get('inactive_threshold_minutes', 5)
             ),
+            'message_latency': lambda: get_message_processing_latency(
+                params.get('time_window_minutes', 15)
+            ),
             'parking_duration': lambda: calculate_average_parking_duration(
                 params.get('days_back', 7)
             ),
@@ -694,10 +770,10 @@ def lambda_handler(event, context):
             )
         }
         
-        # Procesar solicitud
+        # Process request
         if kpi_requested == 'all':
             # Calculate all KPIs (full dashboard mode)
-            logger.info("🔄 Calculating ALL KPIs for complete dashboard...")
+            logger.info("Calculating ALL KPIs for complete dashboard...")
             
             results = {
                 'level_1_operational': {
@@ -708,7 +784,8 @@ def lambda_handler(event, context):
                 'level_2_performance': {
                     'detection_confidence': get_average_detection_confidence(),
                     'low_confidence_rate': get_low_confidence_event_rate(),
-                    'system_health': get_system_health_device_uptime()
+                    'system_health': get_system_health_device_uptime(),
+                    'message_latency': get_message_processing_latency()
                 },
                 'level_3_analytics': {
                     'parking_duration': calculate_average_parking_duration(),
@@ -718,15 +795,15 @@ def lambda_handler(event, context):
                 'metadata': {
                     'generated_at': datetime.now(timezone.utc).isoformat(),
                     'version': '1.0.0',
-                    'project': 'TeraSpot - Sistema Inteligente de Gestión de Estacionamientos'
+                    'project': 'TeraSpot - Smart Parking Management System'
                 }
             }
             
-            logger.info("✅ All KPIs calculated successfully")
+            logger.info("All KPIs calculated successfully")
             
         elif kpi_requested in kpi_functions:
             # Calculate specific KPI
-            logger.info(f"🎯 Calculating specific KPI: {kpi_requested}")
+            logger.info(f"Calculating specific KPI: {kpi_requested}")
             
             results = {
                 'kpi': kpi_requested,
@@ -737,10 +814,10 @@ def lambda_handler(event, context):
                 }
             }
             
-            logger.info(f"✅ KPI {kpi_requested} calculated successfully")
+            logger.info(f"KPI {kpi_requested} calculated successfully")
             
         else:
-            logger.warning(f"❌ Invalid KPI requested: {kpi_requested}")
+            logger.warning(f"Invalid KPI requested: {kpi_requested}")
             return {
                 'statusCode': 400,
                 'headers': {
@@ -768,7 +845,7 @@ def lambda_handler(event, context):
         }
     
     except Exception as e:
-        logger.error(f"💥 Lambda execution error: {str(e)}", exc_info=True)
+        logger.error(f"Lambda execution error: {str(e)}", exc_info=True)
         return {
             'statusCode': 500,
             'body': json.dumps({

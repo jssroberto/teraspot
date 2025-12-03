@@ -226,6 +226,14 @@ export interface SystemHealthKPI {
   timestamp: string;
 }
 
+export interface MessageLatencyKPI {
+  average_latency_seconds: number;
+  max_latency_seconds: number;
+  sample_size: number;
+  status: "EXCELLENT" | "ACCEPTABLE" | "DEGRADED" | "NO_DATA";
+  timestamp: string;
+}
+
 export interface ParkingDurationKPI {
   average_duration_hours: number;
   sample_size: number;
@@ -271,6 +279,7 @@ export interface KPIResponse {
     detection_confidence: DetectionConfidenceKPI;
     low_confidence_rate: LowConfidenceRateKPI;
     system_health: SystemHealthKPI;
+    message_latency: MessageLatencyKPI;
   };
   level_3_analytics: {
     parking_duration: ParkingDurationKPI;
@@ -297,7 +306,7 @@ export const getKPIData = async (
     };
 
 
-    return mockKpi;
+    // return mockKpi;
     const response = await api.post("/kpi", requestBody);
     return response.data;
   } catch (error) {
