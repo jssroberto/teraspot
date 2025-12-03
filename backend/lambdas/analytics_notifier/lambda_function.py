@@ -20,6 +20,17 @@ CURRENT_TABLE_NAME = os.getenv('DYNAMODB_TABLE', 'parking-spaces-dev')
 history_table = dynamodb.Table(HISTORY_TABLE_NAME)
 current_table = dynamodb.Table(CURRENT_TABLE_NAME)
 
+CONNECTIONS_TABLE = os.getenv('CONNECTIONS_TABLE')
+WEBSOCKET_CALLBACK_URL = os.getenv('WEBSOCKET_CALLBACK_URL')
+
+if WEBSOCKET_CALLBACK_URL:
+    apigw_management = boto3.client(
+        'apigatewaymanagementapi', endpoint_url=WEBSOCKET_CALLBACK_URL
+    )
+else:
+    apigw_management = None
+
+
 
 def send_to_sqs(queue_url, message):
     """Envía mensaje a SQS con manejo de errores"""
@@ -163,6 +174,47 @@ def check_inactive_sensors():
         return 0
 
 
+def notify_clients(message):
+    """Push message to all connected WebSocket clients"""
+    if not apigw_management or not CONNECTIONS_TABLE:
+        logger.warning("WebSocket not configured, skipping notification")
+        return
+
+    try:
+        connections_table = dynamodb.Table(CONNECTIONS_TABLE)
+        response = connections_table.scan(ProjectionExpression="connection_id")
+        items = response.get("Items", [])
+
+        if not items:
+            return
+
+        logger.info(f"Pushing update to {len(items)} clients...")
+        
+        # Convert Decimals to float/int for JSON serialization
+        def decimal_default(obj):
+            if isinstance(obj, Decimal):
+                return float(obj)
+            raise TypeError
+
+        payload = json.dumps(message, default=decimal_default).encode("utf-8")
+
+        for item in items:
+            connection_id = item["connection_id"]
+            try:
+                apigw_management.post_to_connection(
+                    ConnectionId=connection_id, Data=payload
+                )
+            except apigw_management.exceptions.GoneException:
+                logger.info(f"Connection {connection_id} is gone, deleting...")
+                connections_table.delete_item(Key={"connection_id": connection_id})
+            except Exception as e:
+                logger.error(f"Failed to post to {connection_id}: {e}")
+
+    except Exception as e:
+        logger.error(f"Failed to notify clients: {e}")
+
+
+
 def process_stream_records(records):
     """Procesa registros de DynamoDB Stream"""
     for record in records:
@@ -185,7 +237,21 @@ def process_stream_records(records):
                     'timestamp': datetime.now(timezone.utc).isoformat()
                 }
                 send_to_sqs(SQS_LOW_CONFIDENCE_URL, alert)
+                send_to_sqs(SQS_LOW_CONFIDENCE_URL, alert)
                 logger.info(f" LOW_CONFIDENCE alert: {space_id}")
+
+            # Notify WebSocket Clients
+            update_msg = {
+                "type": "UPDATE",
+                "data": {
+                    "space_id": space_id,
+                    "status": new_image.get('status', {}).get('S'),
+                    "confidence": confidence,
+                    "timestamp": new_image.get('timestamp', {}).get('S')
+                }
+            }
+            notify_clients(update_msg)
+
 
     occupied, total = get_current_occupancy()
     if total > 0:

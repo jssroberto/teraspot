@@ -18,7 +18,7 @@ jobs:
       - name: Install dependencies
         run: |
           cd backend
-          pip install -r requirements.txt
+          pip install -r requirements-test.txt
 
       - name: Test ingest_status
         run: |
@@ -61,7 +61,7 @@ jobs:
           cp -R ./*.py package/
           cd package && zip -r ../lambda.zip . && cd ..
           aws lambda update-function-code \
-            --function-name teraspot-ingest-lambda \
+            --function-name teraspot-ingest-status \
             --zip-file fileb://lambda.zip
 
       - name: Deploy analytics_notifier
