@@ -66,9 +66,10 @@ export function OccupancyGauge({
                         cx={size / 2}
                         cy={size / 2}
                         r={radius}
-                        stroke="#E0E0E0"
+                        stroke="#333" // Darker background track
                         strokeWidth={strokeWidth}
                         fill="none"
+                        opacity={0.3}
                     />
                     {/* Progress circle */}
                     <Circle
@@ -81,6 +82,20 @@ export function OccupancyGauge({
                         strokeDasharray={circumference}
                         strokeDashoffset={strokeDashoffset}
                         strokeLinecap="round"
+                    // Add shadow/glow effect (supported in some SVG libs, but simple opacity layer works too)
+                    />
+                    {/* Glow effect (simulated with another circle) */}
+                    <Circle
+                        cx={size / 2}
+                        cy={size / 2}
+                        r={radius}
+                        stroke={getStatusColor()}
+                        strokeWidth={strokeWidth + 4}
+                        fill="none"
+                        strokeDasharray={circumference}
+                        strokeDashoffset={strokeDashoffset}
+                        strokeLinecap="round"
+                        opacity={0.2}
                     />
                 </G>
             </Svg>

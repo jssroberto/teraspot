@@ -4,10 +4,11 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 import json
-
 import pytest
+from unittest.mock import MagicMock
 
 from ingest_status import lambda_function
+from ingest_status import persistence
 from ingest_status.parser import parse_events
 from ingest_status.qa import validate_data
 
@@ -20,24 +21,46 @@ class DummyTable:
 
     def put_item(self, Item=None, **kwargs):
         self.items.append(Item or kwargs.get("Item"))
+        
+    def get_item(self, Key=None, **kwargs):
+        # Simple mock: return None or find item
+        for item in self.items:
+            if item["space_id"] == Key["space_id"]:
+                return {"Item": item}
+        return {}
 
 
 @pytest.fixture(autouse=True)
 def mock_dependencies(monkeypatch):
     current_table = DummyTable()
-
-    saved_alerts = {"alerts": []}
+    history_table = DummyTable()
 
     monkeypatch.setattr(lambda_function, "current_table", current_table)
+    monkeypatch.setattr(lambda_function, "history_table", history_table)
+
+    # Mock persistence functions
+    
+    def fake_get_current_state(space_id, table):
+        return table.get_item(Key={"space_id": space_id}).get("Item")
 
     def fake_save_current(items, table):
-        table.items.extend(items)
+        for item in items:
+            table.put_item(Item=item)
 
+    def fake_save_history(items, table):
+        for item in items:
+            table.put_item(Item=item)
+
+    # Patch save_current in lambda_function because it is imported at top level
     monkeypatch.setattr(lambda_function, "save_current", fake_save_current)
+    
+    # Patch others in persistence because they are imported inside the function
+    monkeypatch.setattr(persistence, "get_current_state", fake_get_current_state)
+    monkeypatch.setattr(persistence, "save_history", fake_save_history)
 
     return {
         "current_table": current_table,
-        "alerts": saved_alerts,
+        "history_table": history_table,
     }
 
 
@@ -114,10 +137,72 @@ def test_lambda_handler_valid_payload():
     ]
 
     result = lambda_handler(event, None)
-    assert result["statusCode"] == 200
     body = json.loads(result["body"])
+    print(f"BODY: {body}")
+    if result["statusCode"] != 200:
+        print(f"FAILED BODY: {body}")
+        
+    assert result["statusCode"] == 200
     assert body["success"]
-    assert body["items"] == 2
+    assert body["processed"] == 2
+    # First time -> should write history
+    assert body["history_writes"] == 2
+
+
+def test_lambda_handler_cdc_no_change(mock_dependencies):
+    """Test CDC: No change -> No history write"""
+    current_table = mock_dependencies["current_table"]
+    # Pre-populate
+    current_table.items.append({
+        "space_id": "A-01",
+        "status": "occupied",
+        "is_alive": True,
+        "timestamp": "old_ts"
+    })
+    
+    event = [{
+        "space_id": "A-01",
+        "status": "occupied", # Same status
+        "confidence": 0.95,
+        "device_id": "dev-1",
+    }]
+
+    result = lambda_handler(event, None)
+    body = json.loads(result["body"])
+    
+    if result["statusCode"] != 200:
+        pytest.fail(f"Lambda failed with {result['statusCode']}: {body}")
+    
+    assert body["processed"] == 1
+    assert body["history_writes"] == 0 # Should be 0
+
+
+def test_lambda_handler_cdc_change(mock_dependencies):
+    """Test CDC: Change -> History write"""
+    current_table = mock_dependencies["current_table"]
+    # Pre-populate
+    current_table.items.append({
+        "space_id": "A-01",
+        "status": "vacant",
+        "is_alive": True,
+        "timestamp": "old_ts"
+    })
+    
+    event = [{
+        "space_id": "A-01",
+        "status": "occupied", # Changed
+        "confidence": 0.95,
+        "device_id": "dev-1",
+    }]
+
+    result = lambda_handler(event, None)
+    body = json.loads(result["body"])
+    
+    if result["statusCode"] != 200:
+        pytest.fail(f"Lambda failed with {result['statusCode']}: {body}")
+    
+    assert body["processed"] == 1
+    assert body["history_writes"] == 1
 
 
 def test_lambda_handler_empty():

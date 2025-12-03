@@ -25,10 +25,10 @@ export function OccupancyTrendChart({
     // Dark mode colors
     const isDark = colorScheme === 'dark';
     const gridColor = isDark ? '#333' : '#E0E0E0';
-    const textColor = isDark ? '#999' : '#666';
-    const lineColor = isDark ? '#60A5FA' : '#2196F3'; // Blue-400 for dark, blue-500 for light
-    const fillColor = isDark ? 'rgba(96, 165, 250, 0.15)' : 'rgba(33, 150, 243, 0.1)';
-    const pointStroke = isDark ? '#1F2937' : '#FFFFFF';
+    const textColor = isDark ? '#888' : '#666';
+    const lineColor = isDark ? '#00E5FF' : '#2196F3'; // Cyan accent for dark mode
+    const fillColor = isDark ? 'rgba(0, 229, 255, 0.2)' : 'rgba(33, 150, 243, 0.1)';
+    const pointStroke = isDark ? '#1E1E1E' : '#FFFFFF';
 
     if (!data || data.length === 0) {
         return (

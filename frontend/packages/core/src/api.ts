@@ -33,6 +33,8 @@ export interface RoiSpace {
 export interface ParkingStatus {
   space_id: string;
   status: "occupied" | "vacant" | "unknown";
+  facility_id?: string;
+  zone_id?: string;
 }
 
 export const getDevices = async (): Promise<Device[]> => {

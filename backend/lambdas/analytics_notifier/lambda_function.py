@@ -130,7 +130,7 @@ def check_inactive_sensors():
     try:
         
         response = current_table.scan(
-            ProjectionExpression='space_id, #ts, device_id',
+            ProjectionExpression='space_id, #ts, device_id, last_heartbeat, is_alive',
             ExpressionAttributeNames={'#ts': 'timestamp'}
         )
         
@@ -139,19 +139,45 @@ def check_inactive_sensors():
         inactive_devices = set()
         
         for item in response.get('Items', []):
-            ts_str = item.get('timestamp')
-            if not ts_str:
+            space_id = item.get('space_id')
+            # Use last_heartbeat if available, else fallback to timestamp
+            last_activity_str = item.get('last_heartbeat') or item.get('timestamp')
+            is_alive = item.get('is_alive', True)
+            
+            if not last_activity_str:
                 continue
                 
             try:
-                
-                ts_str = ts_str.replace('Z', '+00:00')
-                last_seen = datetime.fromisoformat(ts_str)
+                last_activity_str = last_activity_str.replace('Z', '+00:00')
+                last_seen = datetime.fromisoformat(last_activity_str)
                 
                 if now - last_seen > threshold:
-                    device_id = item.get('device_id', 'unknown')
-                    inactive_devices.add(device_id)
-                    logger.warning(f"Stale sensor: {item.get('space_id')} (Last seen: {ts_str})")
+                    if is_alive:
+                        # Mark as dead
+                        device_id = item.get('device_id', 'unknown')
+                        inactive_devices.add(device_id)
+                        logger.warning(f"Stale sensor detected: {space_id} (Last seen: {last_activity_str})")
+                        
+                        # 1. Update Current: is_alive = False
+                        current_table.update_item(
+                            Key={'space_id': space_id},
+                            UpdateExpression="set is_alive = :val",
+                            ExpressionAttributeValues={':val': False}
+                        )
+                        
+                        # 2. Write History: Status = 'dead' (or just record the event)
+                        # User said: "updating only when the device is dead"
+                        history_item = {
+                            'space_id': space_id,
+                            'timestamp': now.isoformat(),
+                            'status': 'dead', # Special status for death
+                            'confidence': Decimal('1.0'),
+                            'device_id': device_id,
+                            'archived_at': now.isoformat()
+                        }
+                        history_table.put_item(Item=history_item)
+                        logger.info(f"Recorded death in history for {space_id}")
+
             except ValueError:
                 continue
 
@@ -165,6 +191,7 @@ def check_inactive_sensors():
                 'timestamp': now.isoformat()
             }
             send_to_sqs(SQS_ALERTS_URL, alert)
+            notify_clients(alert) # Broadcast to WebSocket
             logger.info(f" Sent INACTIVE_SENSOR alert for {device}")
             
         return len(inactive_devices)
@@ -220,8 +247,7 @@ def process_stream_records(records):
     for record in records:
         if record['eventName'] in ['MODIFY', 'INSERT']:
             
-            
-            save_history(record)
+            # REMOVED: save_history(record) - History is now handled by ingest_status and check_inactive_sensors
             
             new_image = record['dynamodb'].get('NewImage', {})
             space_id = new_image.get('space_id', {}).get('S', 'UNKNOWN')
@@ -268,6 +294,7 @@ def process_stream_records(records):
                 'timestamp': datetime.now(timezone.utc).isoformat()
             }
             send_to_sqs(SQS_ALERTS_URL, alert)
+            notify_clients(alert) # Broadcast to WebSocket
             logger.info(f"HIGH_OCCUPANCY (CRITICAL) alert sent")
         elif occupancy_pct >= 80:
             alert = {
@@ -279,6 +306,7 @@ def process_stream_records(records):
                 'timestamp': datetime.now(timezone.utc).isoformat()
             }
             send_to_sqs(SQS_ALERTS_URL, alert)
+            notify_clients(alert) # Broadcast to WebSocket
             logger.info(f"HIGH_OCCUPANCY (WARNING) alert sent")
 
 

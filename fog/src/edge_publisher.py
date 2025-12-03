@@ -207,6 +207,16 @@ def main():
     logger.info("=" * 60)
 
     try:
+        # LWT (Last Will and Testament)
+        # If this device disconnects ungracefully, AWS IoT will publish this message
+        lwt_topic = f"teraspot/{config['facility_id']}/{config['zone_id']}/{config['thing_name']}/status"
+        lwt_payload = json.dumps({
+            "device_id": config['thing_name'],
+            "status": "offline", 
+            "timestamp": int(time.time()),
+            "message": "Device disconnected ungracefully (LWT)"
+        })
+        
         logger.info("\nConnecting to AWS IoT Core...")
         mqtt_connection = mqtt_connection_builder.mtls_from_path(
             endpoint=config["endpoint"],
@@ -219,6 +229,12 @@ def main():
             on_connection_success=on_connection_success,
             on_connection_failure=on_connection_failure,
             on_connection_closed=on_connection_closed,
+            will=mqtt.Will(
+                topic=lwt_topic,
+                qos=mqtt.QoS.AT_LEAST_ONCE,
+                payload=lwt_payload.encode("utf-8"),
+                retain=False
+            )
         )
 
         
@@ -278,7 +294,7 @@ def main():
         
         iteration = 0
         last_publish_time = 0
-        HEARTBEAT_INTERVAL = 300  
+        HEARTBEAT_INTERVAL = 60  # Send heartbeat every 60s
 
         while args.iterations < 0 or iteration < args.iterations:
             current_time = time.time()

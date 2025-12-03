@@ -13,6 +13,10 @@ import {
 } from "react-native";
 
 export default function LoginScreen() {
+  React.useEffect(() => {
+    console.log("LoginScreen mounted (useEffect)");
+    return () => console.log("LoginScreen unmounted");
+  }, []);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -48,6 +52,8 @@ export default function LoginScreen() {
         }
       }
     } catch (error: any) {
+      console.error("Login Error Full Object:", JSON.stringify(error, null, 2));
+      console.error("Login Error Message:", error.message);
       Alert.alert("Login Failed", error.message || "An error occurred");
     } finally {
       setLoading(false);

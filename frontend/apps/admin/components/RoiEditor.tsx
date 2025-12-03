@@ -65,16 +65,21 @@ export function RoiEditor({ deviceId }: RoiEditorProps) {
 
   const handleContainerLayout = (event: LayoutChangeEvent) => {
     const { width, height } = event.nativeEvent.layout;
+    console.log("RoiEditor: Container Layout:", width, height);
     setContainerSize({ width, height });
   };
 
   // Calculate the actual displayed rectangle of the image within the container
   const getDisplayedImageRect = () => {
-    if (!containerSize.width || !containerSize.height)
+    if (!containerSize.width || !containerSize.height) {
+      console.log("RoiEditor: Container size is 0");
       return { x: 0, y: 0, width: 0, height: 0 };
+    }
 
     const containerAspect = containerSize.width / containerSize.height;
     const imageAspect = imageMeta.width / imageMeta.height;
+
+    console.log("RoiEditor: Dims", { containerSize, imageMeta, containerAspect, imageAspect });
 
     let renderWidth, renderHeight, offsetX, offsetY;
 
@@ -96,10 +101,24 @@ export function RoiEditor({ deviceId }: RoiEditorProps) {
   };
 
   const handleTouch = (event: any) => {
-    const { locationX, locationY } = event.nativeEvent;
+    // Handle both React Native touch events and Web mouse events
+    let locationX, locationY;
+
+    if (event.nativeEvent.offsetX !== undefined) {
+      // Web Mouse Event
+      locationX = event.nativeEvent.offsetX;
+      locationY = event.nativeEvent.offsetY;
+    } else {
+      // React Native Touch Event
+      locationX = event.nativeEvent.locationX;
+      locationY = event.nativeEvent.locationY;
+    }
+
     const rect = getDisplayedImageRect();
 
     if (
+      rect.width === 0 ||
+      rect.height === 0 ||
       locationX < rect.x ||
       locationX > rect.x + rect.width ||
       locationY < rect.y ||
@@ -110,6 +129,9 @@ export function RoiEditor({ deviceId }: RoiEditorProps) {
 
     let x = (locationX - rect.x) / rect.width;
     let y = (locationY - rect.y) / rect.height;
+
+    // Guard against NaN if width/height are 0 (though checked above, good safety)
+    if (isNaN(x) || isNaN(y)) return;
 
     x = Math.max(0, Math.min(1, x));
     y = Math.max(0, Math.min(1, y));
@@ -169,13 +191,15 @@ export function RoiEditor({ deviceId }: RoiEditorProps) {
 
   const getPointsString = (points: number[][]) => {
     const rect = getDisplayedImageRect();
-    return points
+    const str = points
       .map((p) => {
         const px = rect.x + p[0] * rect.width;
         const py = rect.y + p[1] * rect.height;
         return `${px},${py}`;
       })
       .join(" ");
+    console.log("RoiEditor: Points String:", str);
+    return str;
   };
 
   return (
@@ -222,42 +246,51 @@ export function RoiEditor({ deviceId }: RoiEditorProps) {
                 resizeMode="contain"
               />
 
-              <Svg style={StyleSheet.absoluteFill} pointerEvents="none">
-                {polygons.map((poly, index) => (
-                  <Polygon
-                    key={index}
-                    points={getPointsString(poly.polygon)}
-                    fill="rgba(0, 255, 0, 0.3)"
-                    stroke="lime"
-                    strokeWidth={2 / zoomScale} // Keep stroke thin when zoomed
-                  />
-                ))}
-
-                {currentPoints.length > 0 && (
-                  <>
+              {containerSize.width > 0 && containerSize.height > 0 && (
+                <Svg
+                  height={containerSize.height}
+                  width={containerSize.width}
+                  viewBox={`0 0 ${containerSize.width} ${containerSize.height}`}
+                  style={[StyleSheet.absoluteFill, { zIndex: 10 }]}
+                  pointerEvents="none"
+                >
+                  {polygons.map((poly, index) => (
                     <Polygon
-                      points={getPointsString(currentPoints)}
-                      fill="rgba(0, 0, 255, 0.3)"
-                      stroke="blue"
+                      key={index}
+                      points={getPointsString(poly.polygon)}
+                      fill="rgba(0, 255, 0, 0.3)"
+                      stroke="lime"
                       strokeWidth={2 / zoomScale}
                     />
-                    {currentPoints.map((p, i) => {
-                      const rect = getDisplayedImageRect();
-                      const cx = rect.x + p[0] * rect.width;
-                      const cy = rect.y + p[1] * rect.height;
-                      return (
-                        <Circle
-                          key={i}
-                          cx={cx}
-                          cy={cy}
-                          r={4 / zoomScale}
-                          fill="blue"
-                        />
-                      );
-                    })}
-                  </>
-                )}
-              </Svg>
+                  ))}
+
+                  {currentPoints.length > 0 && (
+                    <>
+                      <Polygon
+                        points={getPointsString(currentPoints)}
+                        fill="rgba(0, 0, 255, 0.3)"
+                        stroke="blue"
+                        strokeWidth={2 / zoomScale}
+                      />
+                      {currentPoints.map((p, i) => {
+                        const rect = getDisplayedImageRect();
+                        const cx = rect.x + p[0] * rect.width;
+                        const cy = rect.y + p[1] * rect.height;
+                        if (isNaN(cx) || isNaN(cy)) return null;
+                        return (
+                          <Circle
+                            key={i}
+                            cx={cx}
+                            cy={cy}
+                            r={4 / zoomScale}
+                            fill="blue"
+                          />
+                        );
+                      })}
+                    </>
+                  )}
+                </Svg>
+              )}
             </TouchableOpacity>
           )}
         </View>
