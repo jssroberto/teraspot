@@ -40,10 +40,10 @@ export function PeakHoursChart({
 
     const getBarColor = (value: number) => {
         if (isDark) {
-            // Dark mode colors - slightly muted
-            if (value >= 90) return "#EF4444"; // Red-500
-            if (value >= 60) return "#F59E0B"; // Amber-500
-            return "#10B981"; // Emerald-500
+            // Dark mode colors - Neon/Vibrant
+            if (value >= 90) return "#FF5252"; // Red accent
+            if (value >= 60) return "#FFAB40"; // Amber accent
+            return "#69F0AE"; // Green accent
         } else {
             // Light mode colors
             if (value >= 90) return "#F44336"; // Red

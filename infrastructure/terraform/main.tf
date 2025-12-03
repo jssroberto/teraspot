@@ -175,19 +175,77 @@ resource "aws_api_gateway_integration" "lambda_integration" {
   uri                     = aws_lambda_function.config_saver.invoke_arn
 }
 
+# CORS for /config
+resource "aws_api_gateway_method" "options_config" {
+  rest_api_id   = aws_api_gateway_rest_api.api.id
+  resource_id   = aws_api_gateway_resource.config_resource.id
+  http_method   = "OPTIONS"
+  authorization = "NONE"
+}
+
+resource "aws_api_gateway_integration" "options_config_integration" {
+  rest_api_id = aws_api_gateway_rest_api.api.id
+  resource_id = aws_api_gateway_resource.config_resource.id
+  http_method = aws_api_gateway_method.options_config.http_method
+  type        = "MOCK"
+  request_templates = {
+    "application/json" = "{\"statusCode\": 200}"
+  }
+}
+
+resource "aws_api_gateway_method_response" "options_config_response" {
+  rest_api_id = aws_api_gateway_rest_api.api.id
+  resource_id = aws_api_gateway_resource.config_resource.id
+  http_method = aws_api_gateway_method.options_config.http_method
+  status_code = "200"
+  response_models = {
+    "application/json" = "Empty"
+  }
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Headers" = true,
+    "method.response.header.Access-Control-Allow-Methods" = true,
+    "method.response.header.Access-Control-Allow-Origin"  = true
+  }
+}
+
+resource "aws_api_gateway_integration_response" "options_config_integration_response" {
+  rest_api_id = aws_api_gateway_rest_api.api.id
+  resource_id = aws_api_gateway_resource.config_resource.id
+  http_method = aws_api_gateway_method.options_config.http_method
+  status_code = aws_api_gateway_method_response.options_config_response.status_code
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Headers" = "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'",
+    "method.response.header.Access-Control-Allow-Methods" = "'GET,OPTIONS,POST,PUT'",
+    "method.response.header.Access-Control-Allow-Origin"  = "'*'"
+  }
+  depends_on = [aws_api_gateway_method_response.options_config_response]
+}
+
+# Deployment
 # Deployment
 resource "aws_api_gateway_deployment" "deployment" {
   depends_on = [
     aws_api_gateway_integration.lambda_integration,
     aws_api_gateway_integration.command_integration,
-    aws_api_gateway_integration.status_integration
+    aws_api_gateway_integration.status_integration,
+    aws_api_gateway_integration.options_config_integration,
+    aws_api_gateway_integration.options_command_integration
   ]
 
   rest_api_id = aws_api_gateway_rest_api.api.id
   
   # Force redeployment when code changes
   triggers = {
-    redeployment = sha1(jsonencode(aws_api_gateway_rest_api.api.body))
+    redeployment = sha1(jsonencode([
+      aws_api_gateway_resource.config_resource.id,
+      aws_api_gateway_method.post_config.id,
+      aws_api_gateway_integration.lambda_integration.id,
+      aws_api_gateway_method.options_config.id,
+      aws_api_gateway_integration.options_config_integration.id,
+      aws_api_gateway_method.options_command.id,
+      aws_api_gateway_integration.options_command_integration.id,
+      timestamp()
+    ]))
   }
 
   lifecycle {
@@ -363,6 +421,55 @@ resource "aws_api_gateway_integration" "command_integration" {
   uri                     = aws_lambda_function.device_command.invoke_arn
 }
 
+# CORS for /device/{device_id}/command
+resource "aws_api_gateway_method" "options_command" {
+  rest_api_id   = aws_api_gateway_rest_api.api.id
+  resource_id   = aws_api_gateway_resource.command_resource.id
+  http_method   = "OPTIONS"
+  authorization = "NONE"
+}
+
+resource "aws_api_gateway_integration" "options_command_integration" {
+  rest_api_id = aws_api_gateway_rest_api.api.id
+  resource_id = aws_api_gateway_resource.command_resource.id
+  http_method = aws_api_gateway_method.options_command.http_method
+  type        = "MOCK"
+  request_templates = {
+    "application/json" = "{\"statusCode\": 200}"
+  }
+}
+
+resource "aws_api_gateway_method_response" "options_command_response" {
+  rest_api_id = aws_api_gateway_rest_api.api.id
+  resource_id = aws_api_gateway_resource.command_resource.id
+  http_method = aws_api_gateway_method.options_command.http_method
+  status_code = "200"
+  
+  response_models = {
+    "application/json" = "Empty"
+  }
+
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Headers" = true,
+    "method.response.header.Access-Control-Allow-Methods" = true,
+    "method.response.header.Access-Control-Allow-Origin"  = true
+  }
+}
+
+resource "aws_api_gateway_integration_response" "options_command_integration_response" {
+  rest_api_id = aws_api_gateway_rest_api.api.id
+  resource_id = aws_api_gateway_resource.command_resource.id
+  http_method = aws_api_gateway_method.options_command.http_method
+  status_code = aws_api_gateway_method_response.options_command_response.status_code
+
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Headers" = "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'",
+    "method.response.header.Access-Control-Allow-Methods" = "'GET,OPTIONS,POST,PUT'",
+    "method.response.header.Access-Control-Allow-Origin"  = "'*'"
+  }
+  depends_on = [aws_api_gateway_method_response.options_command_response]
+}
+
 resource "aws_lambda_permission" "apigw_command_lambda" {
   statement_id  = "AllowExecutionFromAPIGateway"
   action        = "lambda:InvokeFunction"
@@ -523,9 +630,17 @@ resource "aws_iam_role_policy" "ingest_status_policy" {
         Action = [
           "dynamodb:PutItem",
           "dynamodb:UpdateItem",
-          "dynamodb:BatchWriteItem"
+          "dynamodb:BatchWriteItem",
+          "dynamodb:GetItem"
         ]
         Resource = "arn:aws:dynamodb:${var.aws_region}:${data.aws_caller_identity.current.account_id}:table/${var.dynamodb_table_name}"
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "dynamodb:PutItem"
+        ]
+        Resource = "arn:aws:dynamodb:${var.aws_region}:${data.aws_caller_identity.current.account_id}:table/parking-history"
       }
     ]
   })
@@ -543,6 +658,7 @@ resource "aws_lambda_function" "ingest_status" {
   environment {
     variables = {
       DYNAMODB_TABLE = var.dynamodb_table_name
+      HISTORY_TABLE  = "parking-history"
     }
   }
 }

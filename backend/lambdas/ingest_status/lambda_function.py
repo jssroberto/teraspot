@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any, Dict, List
 
@@ -17,8 +18,10 @@ from persistence import save_current
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
+
 REGION = os.getenv("REGION", "us-east-1")
 DYNAMODB_TABLE = os.getenv("DYNAMODB_TABLE", "parking-spaces-dev")
+HISTORY_TABLE = os.getenv("HISTORY_TABLE", "parking-history")
 SQS_ALERTS_URL = os.getenv("SQS_ALERTS_URL")
 SQS_LOW_CONFIDENCE_URL = os.getenv("SQS_LOW_CONFIDENCE_URL")
 
@@ -26,6 +29,7 @@ dynamodb = boto3.resource("dynamodb", region_name=REGION)
 sqs = boto3.client("sqs", region_name=REGION)
 
 current_table = dynamodb.Table(DYNAMODB_TABLE)
+history_table = dynamodb.Table(HISTORY_TABLE)
 
 
 def _extract_raw_payload(event: Any) -> Any:
@@ -44,52 +48,76 @@ def lambda_handler(event, context):
             logger.error("Empty or invalid payload")
             return {"statusCode": 400, "body": json.dumps({"error": "No events"})}
 
-        items: List[Dict[str, Any]] = []
-        rejected = 0
+        processed_count = 0
+        rejected_count = 0
+        history_writes = 0
 
         for entry in events:
             enriched = enrich_event(entry)
             space_id = enriched.get("space_id")
+            
+            # 1. Validate
             if not space_id:
                 logger.warning("Rejected event without space_id: %s", entry)
-                rejected += 1
+                rejected_count += 1
                 continue
 
             is_valid, error = validate_data(space_id, enriched)
             if not is_valid:
                 logger.warning("Rejected %s: %s", space_id, error)
-                rejected += 1
+                rejected_count += 1
                 continue
 
-            items.append(
-                {
-                    "space_id": space_id,
-                    "status": enriched["status"],
-                    "confidence": Decimal(str(enriched["confidence"])),
-                    "timestamp": enriched["timestamp"],
-                    "device_id": enriched["device_id"],
-                    "facility_id": enriched["facility_id"],
-                    "zone_id": enriched["zone_id"],
-                    "data_source": enriched.get("data_source", "unknown"),
-                }
-            )
-
-        if not items:
-            logger.error("No valid items (rejected: %d)", rejected)
-            return {
-                "statusCode": 400,
-                "body": json.dumps({"error": "No items", "rejected": rejected}),
+            # Construct the item (WITHOUT data_source/type)
+            new_item = {
+                "space_id": space_id,
+                "status": enriched["status"],
+                "confidence": Decimal(str(enriched["confidence"])),
+                "timestamp": enriched["timestamp"],
+                "device_id": enriched["device_id"],
+                "facility_id": enriched["facility_id"],
+                "zone_id": enriched["zone_id"],
+                "is_alive": True,
+                "last_heartbeat": datetime.now(timezone.utc).isoformat()
             }
 
-        logger.info("Saving current data")
-        save_current(items, current_table)
+            # 2. Fetch Current State
+            from persistence import get_current_state
+            current_state = get_current_state(space_id, current_table)
+            
+            # 3. Compare & Decide
+            should_write_history = False
+            
+            if not current_state:
+                # New space -> Write history
+                should_write_history = True
+                logger.info("New space detected: %s", space_id)
+            else:
+                old_status = current_state.get("status")
+                was_alive = current_state.get("is_alive", True) # Default to True if missing
+                
+                if new_item["status"] != old_status:
+                    should_write_history = True
+                    logger.info("Status change: %s -> %s", old_status, new_item["status"])
+                elif not was_alive:
+                    should_write_history = True
+                    logger.info("Device recovered: %s", space_id)
+            
+            # 4. Write History (if needed)
+            if should_write_history:
+                from persistence import save_history
+                save_history([new_item], history_table)
+                history_writes += 1
 
-        
+            # 5. Update Current (Always, for heartbeat)
+            save_current([new_item], current_table)
+            processed_count += 1
 
         logger.info(
-            "Complete: %d items processed, %d rejected",
-            len(items),
-            rejected,
+            "Complete: %d processed, %d rejected, %d history entries",
+            processed_count,
+            rejected_count,
+            history_writes
         )
 
         return {
@@ -97,8 +125,9 @@ def lambda_handler(event, context):
             "body": json.dumps(
                 {
                     "success": True,
-                    "items": len(items),
-                    "rejected": rejected,
+                    "processed": processed_count,
+                    "rejected": rejected_count,
+                    "history_writes": history_writes
                 }
             ),
         }

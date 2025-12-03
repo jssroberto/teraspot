@@ -309,6 +309,18 @@ def _handle_delete(payload: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _add_cors_headers(response: dict[str, Any]) -> dict[str, Any]:
+    """Adds CORS headers to the response."""
+    headers = response.get("headers", {})
+    headers.update({
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Headers": "Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token",
+        "Access-Control-Allow-Methods": "GET,OPTIONS,POST,PUT"
+    })
+    response["headers"] = headers
+    return response
+
+
 def lambda_handler(event, context):
     """
     Handles configuration CRUD.
@@ -316,29 +328,34 @@ def lambda_handler(event, context):
     """
     try:
         logger.info("config_saver triggered")
+        
+        # Handle OPTIONS preflight request (if it reaches the lambda)
+        if event.get("httpMethod") == "OPTIONS":
+             return _add_cors_headers({
+                "statusCode": 200,
+                "body": json.dumps("OK")
+            })
 
         payload = _parse_payload(event)
 
         action = payload.get("action", "SAVE").upper()
 
         if action == "SAVE":
-            return _handle_save(payload)
-
+            response = _handle_save(payload)
         elif action == "GET":
-            return _handle_get(payload)
-
+            response = _handle_get(payload)
         elif action == "LIST":
-            return _handle_list(payload)
-
+            response = _handle_list(payload)
         elif action == "DELETE":
-            return _handle_delete(payload)
-
+            response = _handle_delete(payload)
         else:
-            return {
+            response = {
                 "statusCode": 400,
                 "body": json.dumps({"error": f"Unknown action: {action}"}),
             }
+            
+        return _add_cors_headers(response)
 
     except Exception as e:
         logger.error(f"Error in config_saver: {str(e)}", exc_info=True)
-        return {"statusCode": 500, "body": json.dumps({"error": str(e)})}
+        return _add_cors_headers({"statusCode": 500, "body": json.dumps({"error": str(e)})})

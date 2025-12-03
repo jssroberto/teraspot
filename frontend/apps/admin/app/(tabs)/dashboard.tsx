@@ -14,7 +14,9 @@ import {
     View,
     useWindowDimensions,
     Platform,
+    TouchableOpacity,
 } from "react-native";
+import { signOut } from "aws-amplify/auth";
 
 export default function DashboardScreen() {
     const [kpiData, setKpiData] = useState<KPIResponse | null>(null);
@@ -52,9 +54,67 @@ export default function DashboardScreen() {
     useEffect(() => {
         fetchKPIData();
 
-        // Auto-refresh every 60 seconds
-        const interval = setInterval(fetchKPIData, 60000);
-        return () => clearInterval(interval);
+        // WebSocket Connection
+        const wsUrl = "wss://vmdq0zxc18.execute-api.us-east-1.amazonaws.com/dev";
+        let ws: WebSocket | null = null;
+
+        const connectWebSocket = () => {
+            try {
+                console.log("Connecting to WebSocket:", wsUrl);
+                ws = new WebSocket(wsUrl);
+
+                ws.onopen = () => {
+                    console.log("WebSocket Connected");
+                };
+
+                ws.onmessage = (event) => {
+                    try {
+                        const message = JSON.parse(event.data);
+                        console.log("WS Message:", message);
+
+                        if (message.type === "UPDATE") {
+                            // Refresh data on update
+                            fetchKPIData();
+                        } else if (message.type === "INACTIVE_SENSOR") {
+                            Alert.alert(
+                                "⚠️ Sensor Inactivo",
+                                message.message || `Dispositivo ${message.device_id} sin respuesta`,
+                                [{ text: "OK" }]
+                            );
+                        } else if (message.type === "HIGH_OCCUPANCY") {
+                            Alert.alert(
+                                "🚨 Alta Ocupación",
+                                `Ocupación al ${message.occupancy_percent.toFixed(1)}%`,
+                                [{ text: "Ver Detalles" }, { text: "Cerrar" }]
+                            );
+                        }
+                    } catch (e) {
+                        console.error("Error parsing WS message", e);
+                    }
+                };
+
+                ws.onerror = (e) => {
+                    console.log("WebSocket Error:", e);
+                };
+
+                ws.onclose = () => {
+                    console.log("WebSocket Closed. Reconnecting in 5s...");
+                    setTimeout(connectWebSocket, 5000);
+                };
+            } catch (e) {
+                console.error("WebSocket connection failed", e);
+            }
+        };
+
+        connectWebSocket();
+
+        // Backup polling every 5 minutes (instead of 1 min)
+        const interval = setInterval(fetchKPIData, 300000);
+
+        return () => {
+            if (ws) ws.close();
+            clearInterval(interval);
+        };
     }, []);
 
     if (loading) {
@@ -143,7 +203,21 @@ export default function DashboardScreen() {
                                 Sistema Inteligente de Gestión de Estacionamientos
                             </ThemedText>
                         </View>
-                        <ThemedText style={styles.systemStatus}>SISTEMA OK</ThemedText>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                            <ThemedText style={styles.systemStatus}>SISTEMA OK</ThemedText>
+                            <TouchableOpacity
+                                onPress={async () => {
+                                    try {
+                                        await signOut();
+                                    } catch (e) {
+                                        console.error("Error signing out", e);
+                                    }
+                                }}
+                                style={{ padding: 8, backgroundColor: '#ff4444', borderRadius: 8 }}
+                            >
+                                <ThemedText style={{ color: 'white', fontSize: 12, fontWeight: 'bold' }}>LOGOUT</ThemedText>
+                            </TouchableOpacity>
+                        </View>
                     </View>
 
                     {/* KPI Cards Grid */}
