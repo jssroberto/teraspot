@@ -78,7 +78,8 @@ def lambda_handler(event, context):
                 "facility_id": enriched["facility_id"],
                 "zone_id": enriched["zone_id"],
                 "is_alive": True,
-                "last_heartbeat": datetime.now(timezone.utc).isoformat()
+                "last_heartbeat": datetime.now(timezone.utc).isoformat(),
+                "processed_timestamp": datetime.now(timezone.utc).isoformat()
             }
 
             # 2. Fetch Current State
@@ -111,6 +112,36 @@ def lambda_handler(event, context):
 
             # 5. Update Current (Always, for heartbeat)
             save_current([new_item], current_table)
+            
+            # 6. Calculate & Publish Latency Metric
+            try:
+                ts_str = new_item.get('timestamp')
+                if ts_str:
+                    ts_str = ts_str.replace('Z', '+00:00')
+                    event_time = datetime.fromisoformat(ts_str)
+                    now = datetime.now(timezone.utc)
+                    latency = (now - event_time).total_seconds()
+                    
+                    if latency >= 0:
+                        cloudwatch = boto3.client('cloudwatch', region_name=REGION)
+                        cloudwatch.put_metric_data(
+                            Namespace='TeraSpot/KPIs',
+                            MetricData=[
+                                {
+                                    'MetricName': 'MessageProcessingLatency',
+                                    'Dimensions': [
+                                        {'Name': 'FacilityId', 'Value': new_item.get('facility_id', 'unknown')}
+                                    ],
+                                    'Value': latency,
+                                    'Unit': 'Seconds',
+                                    'StorageResolution': 60
+                                }
+                            ]
+                        )
+                        logger.info(f"Latency recorded: {latency:.3f}s")
+            except Exception as e:
+                logger.error(f"Error publishing latency metric: {e}")
+
             processed_count += 1
 
         logger.info(

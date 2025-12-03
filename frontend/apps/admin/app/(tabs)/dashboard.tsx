@@ -38,7 +38,7 @@ export default function DashboardScreen() {
         setRefreshing(true);
         try {
             const data = await getKPIData({
-                time_window_minutes: 60,
+                time_window_minutes: 1440, // 24 hours to capture data in low-traffic/dev environments
                 days_back: 7,
             });
             setKpiData(data);
@@ -184,6 +184,40 @@ export default function DashboardScreen() {
         }
     };
 
+    const getLatencyStatus = (status: string) => {
+        switch (status) {
+            case "EXCELLENT":
+                return "success";
+            case "ACCEPTABLE":
+                return "warning";
+            case "DEGRADED":
+                return "error";
+            default:
+                return "info";
+        }
+    };
+
+    const getLowConfidenceStatus = (status: string) => {
+        switch (status) {
+            case "NORMAL":
+                return "success";
+            case "MONITOR":
+                return "warning";
+            case "ACTION_REQUIRED":
+                return "error";
+            default:
+                return "info";
+        }
+    };
+
+    const formatDuration = (hours: number) => {
+        if (hours < 1) {
+            const minutes = Math.round(hours * 60);
+            return `${minutes}m`;
+        }
+        return `${hours.toFixed(1)}h`;
+    };
+
     return (
         <ThemedView style={styles.container}>
             <ScrollView
@@ -303,10 +337,10 @@ export default function DashboardScreen() {
                                 title="CONFIANZA IA (YOLO)"
                                 value={
                                     level_2_performance.detection_confidence.sample_size > 0
-                                        ? `${(level_2_performance.detection_confidence.average_confidence * 100).toFixed(1)}%`
+                                        ? `${level_2_performance.detection_confidence.average_confidence.toFixed(1)}%`
                                         : "N/A"
                                 }
-                                subtitle="Calidad de Detección"
+                                subtitle="Calidad (Solo Ocupados)"
                                 status={getConfidenceStatus(
                                     level_2_performance.detection_confidence.quality_status
                                 )}
@@ -329,14 +363,80 @@ export default function DashboardScreen() {
                                     ]}
                                 >
                                     {level_2_performance.detection_confidence.sample_size > 0
-                                        ? `${(level_2_performance.detection_confidence.average_confidence * 100).toFixed(1)}%`
+                                        ? `${level_2_performance.detection_confidence.average_confidence.toFixed(1)}%`
                                         : "N/A"}
                                 </ThemedText>
                                 <ThemedText style={styles.subtitle}>
-                                    Muestras: {level_2_performance.detection_confidence.sample_size}
+                                    Muestras (Ocupados): {level_2_performance.detection_confidence.sample_size}
                                 </ThemedText>
                                 <ThemedText style={styles.statusLabel}>
                                     {level_2_performance.detection_confidence.quality_status}
+                                </ThemedText>
+                            </KPICard>
+                        </View>
+
+                        {/* Low Confidence Rate */}
+                        <View style={[styles.gridItem, { width: `${100 / gridColumns}%` }]}>
+                            <KPICard
+                                title="TASA BAJA CONFIANZA"
+                                value={`${level_2_performance.low_confidence_rate.low_confidence_rate.toFixed(1)}%`}
+                                subtitle={`${level_2_performance.low_confidence_rate.low_confidence_count} eventos`}
+                                status={getLowConfidenceStatus(level_2_performance.low_confidence_rate.status)}
+                            >
+                                <ThemedText style={styles.value}>
+                                    {level_2_performance.low_confidence_rate.low_confidence_rate.toFixed(1)}%
+                                </ThemedText>
+                                <ThemedText style={styles.subtitle}>
+                                    {level_2_performance.low_confidence_rate.low_confidence_count} / {level_2_performance.low_confidence_rate.total_events} eventos
+                                </ThemedText>
+                                <ThemedText style={styles.statusLabel}>
+                                    {level_2_performance.low_confidence_rate.status}
+                                </ThemedText>
+                            </KPICard>
+                        </View>
+
+                        {/* Message Latency */}
+                        <View style={[styles.gridItem, { width: `${100 / gridColumns}%` }]}>
+                            <KPICard
+                                title="LATENCIA MENSAJES"
+                                value={
+                                    level_2_performance.message_latency?.status !== "NO_DATA"
+                                        ? `${level_2_performance.message_latency?.average_latency_seconds.toFixed(3)}s`
+                                        : "N/A"
+                                }
+                                subtitle="Procesamiento E2E"
+                                status={getLatencyStatus(level_2_performance.message_latency?.status || "NO_DATA")}
+                            >
+                                <ThemedText style={styles.value}>
+                                    {level_2_performance.message_latency?.status !== "NO_DATA"
+                                        ? `${level_2_performance.message_latency?.average_latency_seconds.toFixed(3)}s`
+                                        : "N/A"}
+                                </ThemedText>
+                                <ThemedText style={styles.subtitle}>
+                                    Max: {level_2_performance.message_latency?.max_latency_seconds?.toFixed(3) || 0}s
+                                </ThemedText>
+                                <ThemedText style={styles.statusLabel}>
+                                    {level_2_performance.message_latency?.status || "NO_DATA"}
+                                </ThemedText>
+                            </KPICard>
+                        </View>
+
+                        {/* Parking Duration */}
+                        <View style={[styles.gridItem, { width: `${100 / gridColumns}%` }]}>
+                            <KPICard
+                                title="DURACIÓN PROMEDIO"
+                                value={formatDuration(level_3_analytics.parking_duration.average_duration_hours)}
+                                subtitle="Por Sesión"
+                                status="info"
+                            >
+                                <ThemedText style={styles.value}>
+                                    {formatDuration(level_3_analytics.parking_duration.average_duration_hours)}
+                                </ThemedText>
+                                <ThemedText style={styles.subtitle}>
+                                    Tipo: {level_3_analytics.parking_duration.usage_type}
+                                </ThemedText>
+                                <ThemedText style={styles.statusLabel}>
+                                    {level_3_analytics.parking_duration.sample_size} sesiones
                                 </ThemedText>
                             </KPICard>
                         </View>
