@@ -67,10 +67,18 @@ export default function DashboardScreen() {
       <ThemedText>Source: {item.value.video_source}</ThemedText>
 
       <View style={styles.buttonContainer}>
-        <RNButton
-          title="Manage / ROI"
-          onPress={() => router.push(`/editor/${item.value.device_id}` as any)}
-        />
+        <View style={styles.actionButtons}>
+          <RNButton
+            title="Manage / ROI"
+            onPress={() => router.push(`/editor/${item.value.device_id}` as any)}
+          />
+          <View style={{ width: 10 }} />
+          <RNButton
+            title="Edit"
+            color="orange"
+            onPress={() => router.push(`/device/edit/${item.value.device_id}` as any)}
+          />
+        </View>
         <View style={{ height: 10 }} />
         <RNButton
           title="Delete"
@@ -88,9 +96,7 @@ export default function DashboardScreen() {
         {/* TODO: Add Device Screen implementation */}
         <RNButton
           title="Add Device"
-          onPress={() =>
-            Alert.alert("Not Implemented", "Add Device screen not migrated yet")
-          }
+          onPress={() => router.push("/device/add")}
         />
       </View>
 
@@ -138,6 +144,10 @@ const styles = StyleSheet.create({
   },
   buttonContainer: {
     marginTop: 10,
+  },
+  actionButtons: {
+    flexDirection: "row",
+    marginBottom: 10,
   },
   emptyText: {
     textAlign: "center",

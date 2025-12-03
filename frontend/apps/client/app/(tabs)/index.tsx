@@ -23,35 +23,82 @@ export default function HomeScreen() {
   const ASPECT_RATIO = 16 / 9;
 
   useEffect(() => {
+    const fetchStatus = async () => {
+      try {
+        const spaces = await getParkingStatus();
+        const statusMap: Record<string, string> = {};
+        spaces.forEach((space) => {
+          statusMap[space.space_id] = space.status;
+        });
+        setStatuses(statusMap);
+      } catch (error) {
+        console.error("Failed to fetch status", error);
+      }
+    };
+
+    const loadConfig = async () => {
+      try {
+        const spaces = await getRoiConfig(DEVICE_ID);
+        setPolygons(spaces);
+        await fetchStatus();
+      } catch (error) {
+        console.error("Failed to load config", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
     loadConfig();
-    const interval = setInterval(fetchStatus, 2000);
-    return () => clearInterval(interval);
-  }, []); // loadConfig is defined inside component, so we can't easily add it without useCallback or moving it out. Leaving empty array is intentional for mount-only effect, suppressing warning would be better but for now this is fine. 
 
-  const loadConfig = async () => {
-    try {
-      const spaces = await getRoiConfig(DEVICE_ID);
-      setPolygons(spaces);
-      await fetchStatus();
-    } catch (error) {
-      console.error("Failed to load config", error);
-    } finally {
-      setLoading(false);
+    const wsUrl = process.env.EXPO_PUBLIC_WEBSOCKET_URL;
+    if (!wsUrl) {
+      console.warn("WebSocket URL not configured");
+      return;
     }
-  };
 
-  const fetchStatus = async () => {
-    try {
-      const spaces = await getParkingStatus();
-      const statusMap: Record<string, string> = {};
-      spaces.forEach((space) => {
-        statusMap[space.space_id] = space.status;
-      });
-      setStatuses(statusMap);
-    } catch (error) {
-      console.error("Failed to fetch status", error);
-    }
-  };
+    let ws: WebSocket | null = null;
+    let reconnectTimeout: ReturnType<typeof setTimeout>;
+
+    const connect = () => {
+      ws = new WebSocket(wsUrl);
+
+      ws.onopen = () => {
+        console.log("Connected to WebSocket");
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const message = JSON.parse(event.data);
+          if (message.type === "UPDATE" && message.data) {
+            const { space_id, status } = message.data;
+            setStatuses((prev) => ({
+              ...prev,
+              [space_id]: status,
+            }));
+          }
+        } catch (e) {
+          console.error("Failed to parse WebSocket message", e);
+        }
+      };
+
+      ws.onclose = () => {
+        console.log("WebSocket disconnected, reconnecting...");
+        reconnectTimeout = setTimeout(connect, 3000);
+      };
+
+      ws.onerror = (e) => {
+        console.error("WebSocket error", e);
+        ws?.close();
+      };
+    };
+
+    connect();
+
+    return () => {
+      ws?.close();
+      clearTimeout(reconnectTimeout);
+    };
+  }, []);
 
   const handleLayout = (event: any) => {
     const { width, height } = event.nativeEvent.layout;

@@ -66,12 +66,31 @@ def _publish_command(device_id, payload):
         raise
 
 
+def _add_cors_headers(response):
+    """Adds CORS headers to the response."""
+    headers = response.get("headers", {})
+    headers.update({
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Headers": "Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token",
+        "Access-Control-Allow-Methods": "GET,OPTIONS,POST,PUT"
+    })
+    response["headers"] = headers
+    return response
+
+
 def lambda_handler(event, context):
     """
     Handles device commands.
     """
     try:
         logger.info("device_command triggered")
+        
+        # Handle OPTIONS preflight request
+        if event.get("httpMethod") == "OPTIONS":
+             return _add_cors_headers({
+                "statusCode": 200,
+                "body": json.dumps("OK")
+            })
         
         global s3_client, iot_client
         if not s3_client:
@@ -87,10 +106,10 @@ def lambda_handler(event, context):
         command = body.get("command")
         
         if not device_id or not command:
-            return {
+            return _add_cors_headers({
                 "statusCode": 400,
                 "body": json.dumps({"error": "device_id and command are required"})
-            }
+            })
 
         response_data = {"device_id": device_id, "command": command}
 
@@ -118,19 +137,19 @@ def lambda_handler(event, context):
             response_data["message"] = "Reload config requested"
 
         else:
-            return {
+            return _add_cors_headers({
                 "statusCode": 400,
                 "body": json.dumps({"error": f"Unknown command: {command}"})
-            }
+            })
 
-        return {
+        return _add_cors_headers({
             "statusCode": 200,
             "body": json.dumps(response_data)
-        }
+        })
 
     except Exception as e:
         logger.error(f"Error processing command: {str(e)}", exc_info=True)
-        return {
+        return _add_cors_headers({
             "statusCode": 500,
             "body": json.dumps({"error": str(e)})
-        }
+        })

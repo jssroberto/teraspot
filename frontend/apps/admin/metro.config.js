@@ -1,3 +1,4 @@
+// metro.config.js
 const { getDefaultConfig } = require("expo/metro-config");
 const path = require("path");
 
@@ -18,5 +19,19 @@ config.resolver.nodeModulesPaths = [
 
 // 3. Force Metro to resolve (sub)dependencies from the workspace root
 config.resolver.disableHierarchicalLookup = true;
+
+// 4. Enable package exports support and add mjs
+config.resolver.sourceExts.push("mjs");
+config.resolver.unstable_enablePackageExports = true;
+
+// --- ⚠️ AQUÍ ESTABA EL ERROR: SECCIÓN 5 ELIMINADA ---
+// Al borrar la sección 'resolveRequest', Metro leerá automáticamente
+// el package.json de Amplify y elegirá el archivo correcto para iOS.
+
+// 5. Ensure crypto polyfill is available (Esto SÍ se queda)
+config.resolver.extraNodeModules = {
+  ...config.resolver.extraNodeModules,
+  crypto: require.resolve('react-native-get-random-values'),
+};
 
 module.exports = config;

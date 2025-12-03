@@ -20,6 +20,17 @@ CURRENT_TABLE_NAME = os.getenv('DYNAMODB_TABLE', 'parking-spaces-dev')
 history_table = dynamodb.Table(HISTORY_TABLE_NAME)
 current_table = dynamodb.Table(CURRENT_TABLE_NAME)
 
+CONNECTIONS_TABLE = os.getenv('CONNECTIONS_TABLE')
+WEBSOCKET_CALLBACK_URL = os.getenv('WEBSOCKET_CALLBACK_URL')
+
+if WEBSOCKET_CALLBACK_URL:
+    apigw_management = boto3.client(
+        'apigatewaymanagementapi', endpoint_url=WEBSOCKET_CALLBACK_URL
+    )
+else:
+    apigw_management = None
+
+
 
 def send_to_sqs(queue_url, message):
     """Envía mensaje a SQS con manejo de errores"""
@@ -119,7 +130,7 @@ def check_inactive_sensors():
     try:
         
         response = current_table.scan(
-            ProjectionExpression='space_id, #ts, device_id',
+            ProjectionExpression='space_id, #ts, device_id, last_heartbeat, is_alive',
             ExpressionAttributeNames={'#ts': 'timestamp'}
         )
         
@@ -128,19 +139,45 @@ def check_inactive_sensors():
         inactive_devices = set()
         
         for item in response.get('Items', []):
-            ts_str = item.get('timestamp')
-            if not ts_str:
+            space_id = item.get('space_id')
+            # Use last_heartbeat if available, else fallback to timestamp
+            last_activity_str = item.get('last_heartbeat') or item.get('timestamp')
+            is_alive = item.get('is_alive', True)
+            
+            if not last_activity_str:
                 continue
                 
             try:
-                
-                ts_str = ts_str.replace('Z', '+00:00')
-                last_seen = datetime.fromisoformat(ts_str)
+                last_activity_str = last_activity_str.replace('Z', '+00:00')
+                last_seen = datetime.fromisoformat(last_activity_str)
                 
                 if now - last_seen > threshold:
-                    device_id = item.get('device_id', 'unknown')
-                    inactive_devices.add(device_id)
-                    logger.warning(f"Stale sensor: {item.get('space_id')} (Last seen: {ts_str})")
+                    if is_alive:
+                        # Mark as dead
+                        device_id = item.get('device_id', 'unknown')
+                        inactive_devices.add(device_id)
+                        logger.warning(f"Stale sensor detected: {space_id} (Last seen: {last_activity_str})")
+                        
+                        # 1. Update Current: is_alive = False
+                        current_table.update_item(
+                            Key={'space_id': space_id},
+                            UpdateExpression="set is_alive = :val",
+                            ExpressionAttributeValues={':val': False}
+                        )
+                        
+                        # 2. Write History: Status = 'dead' (or just record the event)
+                        # User said: "updating only when the device is dead"
+                        history_item = {
+                            'space_id': space_id,
+                            'timestamp': now.isoformat(),
+                            'status': 'dead', # Special status for death
+                            'confidence': Decimal('1.0'),
+                            'device_id': device_id,
+                            'archived_at': now.isoformat()
+                        }
+                        history_table.put_item(Item=history_item)
+                        logger.info(f"Recorded death in history for {space_id}")
+
             except ValueError:
                 continue
 
@@ -154,6 +191,7 @@ def check_inactive_sensors():
                 'timestamp': now.isoformat()
             }
             send_to_sqs(SQS_ALERTS_URL, alert)
+            notify_clients(alert) # Broadcast to WebSocket
             logger.info(f" Sent INACTIVE_SENSOR alert for {device}")
             
         return len(inactive_devices)
@@ -163,13 +201,53 @@ def check_inactive_sensors():
         return 0
 
 
+def notify_clients(message):
+    """Push message to all connected WebSocket clients"""
+    if not apigw_management or not CONNECTIONS_TABLE:
+        logger.warning("WebSocket not configured, skipping notification")
+        return
+
+    try:
+        connections_table = dynamodb.Table(CONNECTIONS_TABLE)
+        response = connections_table.scan(ProjectionExpression="connection_id")
+        items = response.get("Items", [])
+
+        if not items:
+            return
+
+        logger.info(f"Pushing update to {len(items)} clients...")
+        
+        # Convert Decimals to float/int for JSON serialization
+        def decimal_default(obj):
+            if isinstance(obj, Decimal):
+                return float(obj)
+            raise TypeError
+
+        payload = json.dumps(message, default=decimal_default).encode("utf-8")
+
+        for item in items:
+            connection_id = item["connection_id"]
+            try:
+                apigw_management.post_to_connection(
+                    ConnectionId=connection_id, Data=payload
+                )
+            except apigw_management.exceptions.GoneException:
+                logger.info(f"Connection {connection_id} is gone, deleting...")
+                connections_table.delete_item(Key={"connection_id": connection_id})
+            except Exception as e:
+                logger.error(f"Failed to post to {connection_id}: {e}")
+
+    except Exception as e:
+        logger.error(f"Failed to notify clients: {e}")
+
+
+
 def process_stream_records(records):
     """Procesa registros de DynamoDB Stream"""
     for record in records:
         if record['eventName'] in ['MODIFY', 'INSERT']:
             
-            
-            save_history(record)
+            # REMOVED: save_history(record) - History is now handled by ingest_status and check_inactive_sensors
             
             new_image = record['dynamodb'].get('NewImage', {})
             space_id = new_image.get('space_id', {}).get('S', 'UNKNOWN')
@@ -185,7 +263,21 @@ def process_stream_records(records):
                     'timestamp': datetime.now(timezone.utc).isoformat()
                 }
                 send_to_sqs(SQS_LOW_CONFIDENCE_URL, alert)
+                send_to_sqs(SQS_LOW_CONFIDENCE_URL, alert)
                 logger.info(f" LOW_CONFIDENCE alert: {space_id}")
+
+            # Notify WebSocket Clients
+            update_msg = {
+                "type": "UPDATE",
+                "data": {
+                    "space_id": space_id,
+                    "status": new_image.get('status', {}).get('S'),
+                    "confidence": confidence,
+                    "timestamp": new_image.get('timestamp', {}).get('S')
+                }
+            }
+            notify_clients(update_msg)
+
 
     occupied, total = get_current_occupancy()
     if total > 0:
@@ -202,6 +294,7 @@ def process_stream_records(records):
                 'timestamp': datetime.now(timezone.utc).isoformat()
             }
             send_to_sqs(SQS_ALERTS_URL, alert)
+            notify_clients(alert) # Broadcast to WebSocket
             logger.info(f"HIGH_OCCUPANCY (CRITICAL) alert sent")
         elif occupancy_pct >= 80:
             alert = {
@@ -213,6 +306,7 @@ def process_stream_records(records):
                 'timestamp': datetime.now(timezone.utc).isoformat()
             }
             send_to_sqs(SQS_ALERTS_URL, alert)
+            notify_clients(alert) # Broadcast to WebSocket
             logger.info(f"HIGH_OCCUPANCY (WARNING) alert sent")
 
 
