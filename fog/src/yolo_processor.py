@@ -6,7 +6,7 @@ Supports image or video inference for the TeraSpot edge publisher
 
 import logging
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Sequence, Tuple
+from typing import Any, Dict, List, Sequence, Tuple
 
 import cv2
 from ultralytics import YOLO
@@ -123,13 +123,13 @@ class YOLOProcessor:
         self.cap = cap
         self.video_path = video_path
         self.source_type = "video"
-        
+
         # Get FPS
         self.fps = self.cap.get(cv2.CAP_PROP_FPS)
         if not self.fps or self.fps <= 0:
             self.fps = 30.0
             logger.warning(f"Could not determine FPS, defaulting to {self.fps}")
-            
+
         logger.info(f"Video source set to: {video_path} (FPS: {self.fps:.2f})")
 
     def advance_video_time(self, seconds):
@@ -139,15 +139,17 @@ class YOLOProcessor:
             if frames_to_skip > 0:
                 current_frame = self.cap.get(cv2.CAP_PROP_POS_FRAMES)
                 total_frames = self.cap.get(cv2.CAP_PROP_FRAME_COUNT)
-                
+
                 new_pos = current_frame + frames_to_skip
-                
+
                 # Handle loop if we go past end
                 if total_frames > 0:
                     new_pos = new_pos % total_frames
-                    
+
                 self.cap.set(cv2.CAP_PROP_POS_FRAMES, new_pos)
-                logger.debug(f"Advanced video by {seconds}s ({frames_to_skip} frames) to frame {int(new_pos)}")
+                logger.debug(
+                    f"Advanced video by {seconds}s ({frames_to_skip} frames) to frame {int(new_pos)}"
+                )
 
     def cleanup(self):
         """Release any open capture resources"""
@@ -172,7 +174,7 @@ class YOLOProcessor:
         return frame
 
     def _map_detections_to_spaces(
-        self, detections: List[Dict[str, Optional[float]]], width: int, height: int
+        self, detections: List[Dict[str, Any]], width: int, height: int
     ) -> Dict[str, float]:
         """Return per-space confidence scores from detection centerpoints."""
         occupancy: Dict[str, float] = {}
@@ -180,10 +182,10 @@ class YOLOProcessor:
             center = detection.get("center")
             if not center:
                 continue
-            
+
             # Normalize center to 0-1 to match ROI polygons
             norm_center = (center[0] / width, center[1] / height)
-            
+
             for roi in self._roi_spaces.values():
                 if point_in_polygon(norm_center, roi.polygon):
                     confidence = float(detection.get("confidence") or 0.0)
@@ -223,8 +225,8 @@ class YOLOProcessor:
                 img_path = image_path or self.image_path
                 if not img_path:
                     raise ValueError("No image path provided")
-                inference_source = cv2.imread(img_path) # Read image to store it
-            
+                inference_source = cv2.imread(img_path)  # Read image to store it
+
             self.last_frame = inference_source
 
             try:
@@ -239,7 +241,7 @@ class YOLOProcessor:
                 num_detected_objects = int(len(boxes) if boxes is not None else 0)
                 last_detection_count = num_detected_objects
 
-                detections: List[Dict[str, Optional[float]]] = []
+                detections: List[Dict[str, Any]] = []
                 if boxes is not None and num_detected_objects:
                     xyxy = boxes.xyxy.tolist()
                     confidences = (
@@ -261,7 +263,9 @@ class YOLOProcessor:
                 # Accumulate votes if ROIs are defined
                 if self._roi_spaces:
                     height, width = inference_source.shape[:2]
-                    occupancy_map = self._map_detections_to_spaces(detections, width, height)
+                    occupancy_map = self._map_detections_to_spaces(
+                        detections, width, height
+                    )
                     for space_id, conf in occupancy_map.items():
                         space_votes[space_id] = space_votes.get(space_id, 0) + 1
                         space_conf_sum[space_id] = (
