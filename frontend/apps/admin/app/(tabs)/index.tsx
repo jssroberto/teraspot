@@ -10,6 +10,7 @@ import {
   Button as RNButton,
   StyleSheet,
   View,
+  Platform,
 } from "react-native";
 
 export default function DashboardScreen() {
@@ -17,26 +18,39 @@ export default function DashboardScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const router = useRouter();
 
-  const handleDelete = (deviceId: string) => {
-    Alert.alert(
-      "Delete Device",
-      "Are you sure you want to delete this device?",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              await deleteDevice(deviceId);
-              fetchDevices();
-            } catch {
-              Alert.alert("Error", "Failed to delete device");
-            }
+  const handleDelete = async (deviceId: string) => {
+    if (Platform.OS === "web") {
+      if (window.confirm("Are you sure you want to delete this device?")) {
+        try {
+          await deleteDevice(deviceId);
+          // Small delay to allow S3/Backend to propagate
+          setTimeout(fetchDevices, 500);
+        } catch (e) {
+          console.error("Delete failed", e);
+          alert("Failed to delete device");
+        }
+      }
+    } else {
+      Alert.alert(
+        "Delete Device",
+        "Are you sure you want to delete this device?",
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Delete",
+            style: "destructive",
+            onPress: async () => {
+              try {
+                await deleteDevice(deviceId);
+                setTimeout(fetchDevices, 500);
+              } catch {
+                Alert.alert("Error", "Failed to delete device");
+              }
+            },
           },
-        },
-      ]
-    );
+        ]
+      );
+    }
   };
 
   const fetchDevices = async () => {

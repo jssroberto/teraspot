@@ -3,6 +3,9 @@ name: CI
 on:
   push:
     branches: [dev]
+    paths:
+      - "backend/**"
+      - ".github/workflows/lambdas-ci.yml"
 
 jobs:
   test:
