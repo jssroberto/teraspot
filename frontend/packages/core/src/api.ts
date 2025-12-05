@@ -1,5 +1,5 @@
+import { fetchAuthSession } from "aws-amplify/auth";
 import axios from "axios";
-import { mockKpi } from "./mock-kpi";
 
 // TODO: Use environment variable
 const API_BASE_URL =
@@ -330,9 +330,7 @@ export interface KPIResponse {
   };
 }
 
-export const getKPIData = async (
-  params?: KPIParams
-): Promise<KPIResponse> => {
+export const getKPIData = async (params?: KPIParams): Promise<KPIResponse> => {
   try {
     const requestBody: KPIRequest = {
       kpi: "all",
@@ -342,9 +340,23 @@ export const getKPIData = async (
       },
     };
 
-
     // return mockKpi;
-    const response = await api.post("/kpi", requestBody);
+
+    // Get current session token
+    const session = await fetchAuthSession();
+    const token = session.tokens?.idToken?.toString();
+
+    if (!token) {
+      console.warn("No auth token available for KPI request");
+      // Optional: throw error or return empty data if auth is strictly required
+      // throw new Error("Unauthenticated");
+    }
+
+    const response = await api.post("/kpi", requestBody, {
+      headers: {
+        Authorization: token ? `Bearer ${token}` : undefined,
+      },
+    });
     return response.data;
   } catch (error) {
     console.error("Error fetching KPI data:", error);

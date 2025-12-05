@@ -1,4 +1,5 @@
 import { IconSymbol } from "@/components/ui/icon-symbol";
+import { Colors } from "@/constants/theme";
 import { getParkingStatus } from "@repo/core";
 import { Link, usePathname } from "expo-router";
 import React, { useEffect, useState } from "react";
@@ -127,7 +128,7 @@ export function WebSidebar() {
                   <IconSymbol
                     name={item.icon as any}
                     size={20}
-                    color={isActive ? "#2196F3" : "#888"}
+                    color={isActive ? Colors.dark.tint : "#888"}
                   />
                 </View>
                 <Text
@@ -236,7 +237,7 @@ const styles = StyleSheet.create({
     color: "#aaa",
   },
   dropdownItemTextActive: {
-    color: "#2196F3",
+    color: Colors.dark.tint,
     fontWeight: "600",
   },
   menuContainer: {
@@ -262,7 +263,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   menuItemActive: {
-    backgroundColor: "rgba(33, 150, 243, 0.1)", // Light blue tint
+    backgroundColor: "rgba(10, 126, 164, 0.15)", // Tint color with opacity
   },
   menuIcon: {
     marginRight: 12,
@@ -278,7 +279,7 @@ const styles = StyleSheet.create({
     fontWeight: "500",
   },
   menuTextActive: {
-    color: "#2196F3",
+    color: Colors.dark.tint,
     fontWeight: "600",
   },
   footer: {

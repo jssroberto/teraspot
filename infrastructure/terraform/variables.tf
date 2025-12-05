@@ -38,3 +38,9 @@ variable "camera_sim_count" {
   type        = number
   default     = 1
 }
+
+variable "cognito_user_pool_arn" {
+  description = "ARN of the Cognito User Pool for API Authorization"
+  type        = string
+  default     = "arn:aws:cognito-idp:us-east-1:181601241244:userpool/us-east-1_d5t7fc1oH"
+}

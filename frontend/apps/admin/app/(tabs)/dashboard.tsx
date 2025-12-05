@@ -132,10 +132,18 @@ export default function DashboardScreen() {
     connectWebSocket();
 
     // Backup polling every 5 minutes (instead of 1 min)
-    const interval = setInterval(fetchKPIData, 300000);
+    const interval = setInterval(() => {
+      // Check if we are still authenticated/mounted before fetching
+      // Note: fetchKPIData handles its own errors, but strictly we could check auth state here
+      fetchKPIData();
+    }, 300000);
 
     return () => {
-      if (ws) ws.close();
+      console.log("Dashboard unmounting - cleaning up WS and Polling");
+      if (ws) {
+        ws.close();
+        ws = null;
+      }
       clearInterval(interval);
     };
   }, []);
