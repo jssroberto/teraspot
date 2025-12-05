@@ -1,18 +1,16 @@
+import { PageLayout } from "@/components/PageLayout";
+import { ThemedCard } from "@/components/ThemedCard";
 import { ThemedText } from "@/components/themed-text";
 import { Colors } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { getAlertConfig, saveAlertConfig } from "@repo/core";
-import { Stack } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  KeyboardAvoidingView,
   Platform,
-  ScrollView,
   StyleSheet,
   Switch,
-  Text,
   TextInput,
   TouchableOpacity,
   View,
@@ -24,6 +22,7 @@ export default function AlertsScreen() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   // Config State
   const [occupancyThresholdCrit, setOccupancyThresholdCrit] = useState("95");
@@ -40,7 +39,7 @@ export default function AlertsScreen() {
 
   const loadConfig = async () => {
     try {
-      setLoading(true);
+      if (!refreshing) setLoading(true);
       setError(false);
       const config = await getAlertConfig();
       if (config && Object.keys(config).length > 0) {
@@ -60,7 +59,13 @@ export default function AlertsScreen() {
       setError(true);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
+  };
+
+  const handleRefresh = () => {
+    setRefreshing(true);
+    loadConfig();
   };
 
   const handleSave = async () => {
@@ -88,53 +93,22 @@ export default function AlertsScreen() {
   };
 
   const styles = StyleSheet.create({
-    container: {
-      flex: 1,
-      backgroundColor: theme.background,
-    },
-    scrollView: {
-      padding: 20,
-    },
-    header: {
-      marginBottom: 20,
-    },
-    title: {
-      marginBottom: 5,
-    },
-    subtitle: {
-      fontSize: 14,
-      color: "#888",
-    },
-    card: {
-      backgroundColor: "#1E1E1E", // Dark card
-      borderRadius: 12,
-      padding: 16,
-      marginBottom: 20,
-      borderWidth: 1,
-      borderColor: "#333",
-    },
-    cardTitle: {
-      marginBottom: 16,
-      fontSize: 18,
-      fontWeight: "600",
-      color: theme.text,
-    },
     row: {
       marginBottom: 16,
     },
     label: {
-      color: "#CCC",
       marginBottom: 8,
       fontSize: 14,
+      opacity: 0.7,
     },
     input: {
-      backgroundColor: "#2C2C2C",
-      color: "#FFF",
+      backgroundColor: Platform.OS === "ios" ? "rgba(0,0,0,0.05)" : "#2C2C2C",
+      color: theme.text,
       padding: 12,
       borderRadius: 8,
       fontSize: 16,
       borderWidth: 1,
-      borderColor: "#444",
+      borderColor: "rgba(128,128,128,0.2)",
     },
     switchRow: {
       flexDirection: "row",
@@ -144,7 +118,6 @@ export default function AlertsScreen() {
       paddingVertical: 4,
     },
     switchLabel: {
-      color: "#FFF",
       fontSize: 16,
     },
     saveButton: {
@@ -152,163 +125,166 @@ export default function AlertsScreen() {
       padding: 16,
       borderRadius: 12,
       alignItems: "center",
-      marginTop: 10,
+      marginTop: 20,
+      marginBottom: 40,
     },
     saveButtonText: {
       color: "#FFF",
       fontSize: 16,
       fontWeight: "bold",
     },
-    loadingContainer: {
-      padding: 50,
-      alignItems: "center",
-    },
   });
 
   return (
-    <>
-      <Stack.Screen
-        options={{ title: "Alert Configuration", headerShown: true }}
-      />
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        style={styles.container}
-      >
-        <ScrollView contentContainerStyle={styles.scrollView}>
-          <View style={styles.header}>
-            <ThemedText type="title" style={styles.title}>
-              System Alerts
+    <PageLayout
+      title="System Alerts"
+      subtitle="Configure thresholds and notification channels"
+      refreshing={refreshing}
+      onRefresh={handleRefresh}
+    >
+      {loading && !refreshing ? (
+        <View style={{ padding: 50, alignItems: "center" }}>
+          <ActivityIndicator size="large" color={theme.tint} />
+          <ThemedText style={{ marginTop: 20, opacity: 0.6 }}>
+            Cargando configuración...
+          </ThemedText>
+        </View>
+      ) : error ? (
+        <View style={{ padding: 50, alignItems: "center" }}>
+          <ThemedText style={{ opacity: 0.6, marginBottom: 20 }}>
+            No se pudo cargar la configuración
+          </ThemedText>
+          <TouchableOpacity
+            onPress={loadConfig}
+            style={{
+              paddingHorizontal: 20,
+              paddingVertical: 10,
+              backgroundColor: theme.tint,
+              borderRadius: 8,
+            }}
+          >
+            <ThemedText style={{ color: "white", fontWeight: "bold" }}>
+              Reintentar
             </ThemedText>
-            <ThemedText style={styles.subtitle}>
-              Configure thresholds and notification channels
-            </ThemedText>
-          </View>
-
-          {loading ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color={theme.tint} />
-              <ThemedText style={{ marginTop: 20, opacity: 0.6 }}>
-                Cargando configuración...
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <>
+          <ThemedCard title="Thresholds">
+            <View style={styles.row}>
+              <ThemedText style={styles.label}>
+                Critical Occupancy (%)
               </ThemedText>
+              <TextInput
+                style={[
+                  styles.input,
+                  { color: theme.text, borderColor: theme.icon },
+                ]}
+                value={occupancyThresholdCrit}
+                onChangeText={setOccupancyThresholdCrit}
+                keyboardType="numeric"
+                placeholder="95"
+                placeholderTextColor="#666"
+              />
             </View>
-          ) : error ? (
-            <View style={styles.loadingContainer}>
-              <ThemedText style={{ opacity: 0.6, marginBottom: 20 }}>
-                No se pudo cargar la configuración
+
+            <View style={styles.row}>
+              <ThemedText style={styles.label}>
+                Warning Occupancy (%)
               </ThemedText>
-              <TouchableOpacity
-                onPress={loadConfig}
-                style={{
-                  paddingHorizontal: 20,
-                  paddingVertical: 10,
-                  backgroundColor: theme.tint,
-                  borderRadius: 8,
-                }}
-              >
-                <ThemedText style={{ color: "white", fontWeight: "bold" }}>
-                  Reintentar
-                </ThemedText>
-              </TouchableOpacity>
+              <TextInput
+                style={[
+                  styles.input,
+                  { color: theme.text, borderColor: theme.icon },
+                ]}
+                value={occupancyThresholdWarn}
+                onChangeText={setOccupancyThresholdWarn}
+                keyboardType="numeric"
+                placeholder="80"
+                placeholderTextColor="#666"
+              />
             </View>
-          ) : (
-            <>
-              <View style={styles.card}>
-                <ThemedText type="subtitle" style={styles.cardTitle}>
-                  Thresholds
-                </ThemedText>
 
-                <View style={styles.row}>
-                  <Text style={styles.label}>Critical Occupancy (%)</Text>
-                  <TextInput
-                    style={styles.input}
-                    value={occupancyThresholdCrit}
-                    onChangeText={setOccupancyThresholdCrit}
-                    keyboardType="numeric"
-                    placeholder="95"
-                    placeholderTextColor="#666"
-                  />
-                </View>
+            <View style={styles.row}>
+              <ThemedText style={styles.label}>
+                Confidence Threshold (0.0 - 1.0)
+              </ThemedText>
+              <TextInput
+                style={[
+                  styles.input,
+                  { color: theme.text, borderColor: theme.icon },
+                ]}
+                value={confidenceThreshold}
+                onChangeText={setConfidenceThreshold}
+                keyboardType="numeric"
+                placeholder="0.8"
+                placeholderTextColor="#666"
+              />
+            </View>
 
-                <View style={styles.row}>
-                  <Text style={styles.label}>Warning Occupancy (%)</Text>
-                  <TextInput
-                    style={styles.input}
-                    value={occupancyThresholdWarn}
-                    onChangeText={setOccupancyThresholdWarn}
-                    keyboardType="numeric"
-                    placeholder="80"
-                    placeholderTextColor="#666"
-                  />
-                </View>
+            <View style={styles.row}>
+              <ThemedText style={styles.label}>
+                Inactive Timeout (Minutes)
+              </ThemedText>
+              <TextInput
+                style={[
+                  styles.input,
+                  { color: theme.text, borderColor: theme.icon },
+                ]}
+                value={inactiveTimeout}
+                onChangeText={setInactiveTimeout}
+                keyboardType="numeric"
+                placeholder="5"
+                placeholderTextColor="#666"
+              />
+            </View>
+          </ThemedCard>
 
-                <View style={styles.row}>
-                  <Text style={styles.label}>
-                    Confidence Threshold (0.0 - 1.0)
-                  </Text>
-                  <TextInput
-                    style={styles.input}
-                    value={confidenceThreshold}
-                    onChangeText={setConfidenceThreshold}
-                    keyboardType="numeric"
-                    placeholder="0.8"
-                    placeholderTextColor="#666"
-                  />
-                </View>
+          <ThemedCard title="Notification Channels" style={{ marginTop: 20 }}>
+            <View style={styles.switchRow}>
+              <ThemedText style={styles.switchLabel}>
+                📧 Email Alerts (SNS)
+              </ThemedText>
+              <Switch
+                value={emailEnabled}
+                onValueChange={setEmailEnabled}
+                trackColor={{ false: "#444", true: theme.tint }}
+                thumbColor={emailEnabled ? "#FFF" : "#CCC"}
+              />
+            </View>
 
-                <View style={styles.row}>
-                  <Text style={styles.label}>Inactive Timeout (Minutes)</Text>
-                  <TextInput
-                    style={styles.input}
-                    value={inactiveTimeout}
-                    onChangeText={setInactiveTimeout}
-                    keyboardType="numeric"
-                    placeholder="5"
-                    placeholderTextColor="#666"
-                  />
-                </View>
-              </View>
+            <View style={styles.switchRow}>
+              <ThemedText style={styles.switchLabel}>
+                📱 App Notifications
+              </ThemedText>
+              <Switch
+                value={appEnabled}
+                onValueChange={setAppEnabled}
+                trackColor={{ false: "#444", true: theme.tint }}
+                thumbColor={appEnabled ? "#FFF" : "#CCC"}
+              />
+            </View>
+          </ThemedCard>
 
-              <View style={styles.card}>
-                <ThemedText type="subtitle" style={styles.cardTitle}>
-                  Notification Channels
-                </ThemedText>
-
-                <View style={styles.switchRow}>
-                  <Text style={styles.switchLabel}>📧 Email Alerts (SNS)</Text>
-                  <Switch
-                    value={emailEnabled}
-                    onValueChange={setEmailEnabled}
-                    trackColor={{ false: "#444", true: theme.tint }}
-                    thumbColor={emailEnabled ? "#FFF" : "#CCC"}
-                  />
-                </View>
-
-                <View style={styles.switchRow}>
-                  <Text style={styles.switchLabel}>📱 App Notifications</Text>
-                  <Switch
-                    value={appEnabled}
-                    onValueChange={setAppEnabled}
-                    trackColor={{ false: "#444", true: theme.tint }}
-                    thumbColor={appEnabled ? "#FFF" : "#CCC"}
-                  />
-                </View>
-              </View>
-
-              <TouchableOpacity
-                style={[styles.saveButton, saving && { opacity: 0.7 }]}
-                onPress={handleSave}
-                disabled={saving}
-              >
-                {saving ? (
-                  <ActivityIndicator color="#FFF" />
-                ) : (
-                  <Text style={styles.saveButtonText}>Save Configuration</Text>
-                )}
-              </TouchableOpacity>
-            </>
-          )}
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </>
+          <TouchableOpacity
+            style={[
+              styles.saveButton,
+              { backgroundColor: theme.tint },
+              saving && { opacity: 0.7 },
+            ]}
+            onPress={handleSave}
+            disabled={saving}
+          >
+            {saving ? (
+              <ActivityIndicator color="#FFF" />
+            ) : (
+              <ThemedText style={styles.saveButtonText}>
+                Save Configuration
+              </ThemedText>
+            )}
+          </TouchableOpacity>
+        </>
+      )}
+    </PageLayout>
   );
 }

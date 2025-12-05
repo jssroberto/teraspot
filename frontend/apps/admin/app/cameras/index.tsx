@@ -1,14 +1,13 @@
+import { PageLayout } from "@/components/PageLayout";
+import { ThemedCard } from "@/components/ThemedCard";
 import { ThemedText } from "@/components/themed-text";
-import { ThemedView } from "@/components/themed-view";
 import { deleteDevice, Device, getDevices } from "@repo/core";
-import { useRouter } from "expo-router";
+import { Stack, useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
   Platform,
-  RefreshControl,
-  ScrollView,
   StyleSheet,
   TouchableOpacity,
   useWindowDimensions,
@@ -87,195 +86,139 @@ export default function CamerasScreen() {
   }, []);
 
   return (
-    <ThemedView style={styles.container}>
-      <ScrollView
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={fetchDevices} />
-        }
-        contentContainerStyle={[
-          styles.scrollContent,
-          windowWidth >= 1400 && styles.scrollContentWide,
-        ]}
-      >
-        <View
-          style={[
-            styles.contentContainer,
-            windowWidth >= 1400 && styles.contentContainerWide,
-          ]}
-        >
-          <View
-            style={[styles.header, windowWidth < 600 && styles.headerMobile]}
+    <>
+      <Stack.Screen options={{ headerShown: false }} />
+      <PageLayout
+        title="Edge Processors"
+        subtitle="Manage your camera devices and ROI configurations"
+        refreshing={refreshing}
+        onRefresh={fetchDevices}
+        rightAction={
+          <TouchableOpacity
+            onPress={() => router.push("/device/add")}
+            style={styles.addButton}
           >
-            <View style={{ flex: 1 }}>
-              <ThemedText type="title">Edge Processors</ThemedText>
-              <ThemedText style={styles.subtitle}>
-                Manage your camera devices and ROI configurations
-              </ThemedText>
-            </View>
+            <ThemedText style={styles.addButtonText}>+ Add Device</ThemedText>
+          </TouchableOpacity>
+        }
+      >
+        {loading && !refreshing ? (
+          <View style={{ padding: 50, alignItems: "center" }}>
+            <ActivityIndicator size="large" color="#4CAF50" />
+            <ThemedText style={{ marginTop: 20, opacity: 0.6 }}>
+              Cargando dispositivos...
+            </ThemedText>
+          </View>
+        ) : error ? (
+          <View style={{ padding: 50, alignItems: "center" }}>
+            <ThemedText style={{ opacity: 0.6, marginBottom: 20 }}>
+              No se pudieron cargar los dispositivos
+            </ThemedText>
             <TouchableOpacity
-              onPress={() => router.push("/device/add")}
-              style={styles.addButton}
+              onPress={fetchDevices}
+              style={{
+                paddingHorizontal: 20,
+                paddingVertical: 10,
+                backgroundColor: "#4CAF50",
+                borderRadius: 8,
+              }}
             >
-              <ThemedText style={styles.addButtonText}>+ Add Device</ThemedText>
+              <ThemedText style={{ color: "white", fontWeight: "bold" }}>
+                Reintentar
+              </ThemedText>
             </TouchableOpacity>
           </View>
-
-          {loading && !refreshing ? (
-            <View style={{ padding: 50, alignItems: "center" }}>
-              <ActivityIndicator size="large" color="#4CAF50" />
-              <ThemedText style={{ marginTop: 20, opacity: 0.6 }}>
-                Cargando dispositivos...
-              </ThemedText>
-            </View>
-          ) : error ? (
-            <View style={{ padding: 50, alignItems: "center" }}>
-              <ThemedText style={{ opacity: 0.6, marginBottom: 20 }}>
-                No se pudieron cargar los dispositivos
-              </ThemedText>
-              <TouchableOpacity
-                onPress={fetchDevices}
-                style={{
-                  paddingHorizontal: 20,
-                  paddingVertical: 10,
-                  backgroundColor: "#4CAF50",
-                  borderRadius: 8,
-                }}
+        ) : devices.length === 0 ? (
+          <ThemedText style={styles.emptyText}>
+            No devices found. Add one to get started.
+          </ThemedText>
+        ) : (
+          <View style={[styles.grid, { marginHorizontal: -7.5 }]}>
+            {devices.map((item) => (
+              <View
+                key={item.config_id}
+                style={[styles.gridItem, { width: `${100 / gridColumns}%` }]}
               >
-                <ThemedText style={{ color: "white", fontWeight: "bold" }}>
-                  Reintentar
-                </ThemedText>
-              </TouchableOpacity>
-            </View>
-          ) : devices.length === 0 ? (
-            <ThemedText style={styles.emptyText}>
-              No devices found. Add one to get started.
-            </ThemedText>
-          ) : (
-            <View style={[styles.grid, { marginHorizontal: -7.5 }]}>
-              {devices.map((item) => (
-                <View
-                  key={item.config_id}
-                  style={[styles.gridItem, { width: `${100 / gridColumns}%` }]}
-                >
-                  <ThemedView style={styles.card}>
-                    <View style={styles.cardHeader}>
-                      <View style={{ flex: 1 }}>
-                        <ThemedText style={styles.deviceName}>
-                          {item.value.name || "Unnamed Device"}
-                        </ThemedText>
-                        <ThemedText style={styles.deviceId}>
-                          {item.value.device_id}
-                        </ThemedText>
-                      </View>
-                      <View style={styles.statusBadge}>
-                        <View style={styles.statusDot} />
-                        <ThemedText style={styles.statusText}>
-                          Active
-                        </ThemedText>
-                      </View>
+                <ThemedCard style={{ height: "100%" }}>
+                  <View style={styles.cardHeader}>
+                    <View style={{ flex: 1 }}>
+                      <ThemedText style={styles.deviceName}>
+                        {item.value.name || "Unnamed Device"}
+                      </ThemedText>
+                      <ThemedText style={styles.deviceId}>
+                        {item.value.device_id}
+                      </ThemedText>
                     </View>
-
-                    <View style={styles.deviceInfo}>
-                      <View style={styles.infoRow}>
-                        <ThemedText style={styles.infoLabel}>
-                          IP Address
-                        </ThemedText>
-                        <ThemedText style={styles.infoValue}>
-                          {item.value.ip}
-                        </ThemedText>
-                      </View>
-                      <View style={styles.infoRow}>
-                        <ThemedText style={styles.infoLabel}>
-                          Video Source
-                        </ThemedText>
-                        <ThemedText style={styles.infoValue} numberOfLines={1}>
-                          {item.value.video_source}
-                        </ThemedText>
-                      </View>
+                    <View style={styles.statusBadge}>
+                      <View style={styles.statusDot} />
+                      <ThemedText style={styles.statusText}>Active</ThemedText>
                     </View>
+                  </View>
 
-                    <View style={styles.actionButtons}>
-                      <TouchableOpacity
-                        style={[styles.button, styles.primaryButton]}
-                        onPress={() =>
-                          router.push(`/editor/${item.value.device_id}` as any)
-                        }
-                      >
-                        <ThemedText style={styles.primaryButtonText}>
-                          Manage ROI
-                        </ThemedText>
-                      </TouchableOpacity>
-
-                      <TouchableOpacity
-                        style={[styles.button, styles.secondaryButton]}
-                        onPress={() =>
-                          router.push(
-                            `/device/edit/${item.value.device_id}` as any
-                          )
-                        }
-                      >
-                        <ThemedText style={styles.secondaryButtonText}>
-                          Edit
-                        </ThemedText>
-                      </TouchableOpacity>
-
-                      <TouchableOpacity
-                        style={[styles.button, styles.dangerButton]}
-                        onPress={() => handleDelete(item.value.device_id)}
-                      >
-                        <ThemedText style={styles.dangerButtonText}>
-                          Delete
-                        </ThemedText>
-                      </TouchableOpacity>
+                  <View style={styles.deviceInfo}>
+                    <View style={styles.infoRow}>
+                      <ThemedText style={styles.infoLabel}>
+                        IP Address
+                      </ThemedText>
+                      <ThemedText style={styles.infoValue}>
+                        {item.value.ip}
+                      </ThemedText>
                     </View>
-                  </ThemedView>
-                </View>
-              ))}
-            </View>
-          )}
-        </View>
-      </ScrollView>
-    </ThemedView>
+                    <View style={styles.infoRow}>
+                      <ThemedText style={styles.infoLabel}>
+                        Video Source
+                      </ThemedText>
+                      <ThemedText style={styles.infoValue} numberOfLines={1}>
+                        {item.value.video_source}
+                      </ThemedText>
+                    </View>
+                  </View>
+
+                  <View style={styles.actionButtons}>
+                    <TouchableOpacity
+                      style={[styles.button, styles.primaryButton]}
+                      onPress={() =>
+                        router.push(`/editor/${item.value.device_id}` as any)
+                      }
+                    >
+                      <ThemedText style={styles.primaryButtonText}>
+                        Manage ROI
+                      </ThemedText>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={[styles.button, styles.secondaryButton]}
+                      onPress={() =>
+                        router.push(
+                          `/device/edit/${item.value.device_id}` as any
+                        )
+                      }
+                    >
+                      <ThemedText style={styles.secondaryButtonText}>
+                        Edit
+                      </ThemedText>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={[styles.button, styles.dangerButton]}
+                      onPress={() => handleDelete(item.value.device_id)}
+                    >
+                      <ThemedText style={styles.dangerButtonText}>
+                        Delete
+                      </ThemedText>
+                    </TouchableOpacity>
+                  </View>
+                </ThemedCard>
+              </View>
+            ))}
+          </View>
+        )}
+      </PageLayout>
+    </>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  scrollContent: {
-    padding: 20,
-    paddingBottom: 40,
-    alignItems: "center",
-  },
-  scrollContentWide: {
-    paddingHorizontal: 40,
-    paddingTop: 30,
-  },
-  contentContainer: {
-    width: "100%",
-    maxWidth: 1400,
-  },
-  contentContainerWide: {
-    maxWidth: 1600,
-  },
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    marginBottom: 20,
-    marginTop: 40,
-  },
-  headerMobile: {
-    flexDirection: "column",
-    alignItems: "flex-start",
-    gap: 12,
-  },
-  subtitle: {
-    fontSize: 12,
-    opacity: 0.6,
-    marginTop: 4,
-  },
   addButton: {
     backgroundColor: "#4CAF50",
     paddingHorizontal: 20,
@@ -299,18 +242,6 @@ const styles = StyleSheet.create({
   gridItem: {
     paddingHorizontal: 7.5,
     marginBottom: 15,
-  },
-  card: {
-    padding: 24,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: "rgba(0,0,0,0.1)",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 5,
-    height: "100%",
   },
   cardHeader: {
     flexDirection: "row",

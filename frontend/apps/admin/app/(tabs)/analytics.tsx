@@ -1,15 +1,16 @@
+import { PageLayout } from "@/components/PageLayout";
+import { ThemedCard } from "@/components/ThemedCard";
 import { BarChart } from "@/components/charts/BarChart";
 import { LineChart } from "@/components/charts/LineChart";
+import { ThemedText } from "@/components/themed-text";
 import { Colors } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { getOccupancyTrend, getPeakHours, getPrediction } from "@repo/core";
-import { Stack } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  ScrollView,
+  Platform,
   StyleSheet,
-  Text,
   TextInput,
   TouchableOpacity,
   View,
@@ -22,6 +23,7 @@ export default function AnalyticsScreen() {
   const { width: windowWidth } = useWindowDimensions();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   const [trends, setTrends] = useState<any[]>([]);
   const [predictions, setPredictions] = useState<any>(null); // slope, intercept, points
@@ -32,18 +34,25 @@ export default function AnalyticsScreen() {
   const [horizon, setHorizon] = useState("24"); // Prediction Horizon
 
   // Calculate responsive chart width
-  // On web with sidebar: windowWidth - sidebar(280px) - padding(60px)
-  // On mobile: windowWidth - padding(60px)
-  const chartWidth = windowWidth > 1024 ? windowWidth - 340 : windowWidth - 60;
+  // PageLayout max width is 1400 (or 1600 for wide). Padding is 20 or 40.
+  // Sidebar is ~280px on desktop.
+  // Let's approximate:
+  const isDesktop = windowWidth >= 1024;
+  const contentMaxWidth = 1400;
+  const horizontalPadding = isDesktop ? 80 : 40; // PageLayout padding
+  const cardPadding = 48; // ThemedCard padding (24 * 2)
+
+  // Available width for content
+  const availableWidth =
+    Math.min(windowWidth, contentMaxWidth) - horizontalPadding;
+
+  // Chart width needs to fit inside the card
+  const chartWidth = availableWidth - cardPadding;
 
   useEffect(() => {
     loadData();
-  }, [period]); // Reload when period changes
+  }, [period]);
 
-  // Reload when horizon changes (debounced ideally, but onBlur/button is better, here simple effect for demo)
-  // Actually, let's just make it reload on button or focus change.
-  // For simplicity, I'll add a "Refresh" button or just hook it to effect with debouncing?
-  // I'll hook it to effect but with check.
   useEffect(() => {
     const timeout = setTimeout(() => {
       loadData();
@@ -53,24 +62,17 @@ export default function AnalyticsScreen() {
 
   const loadData = async () => {
     try {
-      setLoading(true);
+      if (!refreshing) setLoading(true);
       setError(false);
 
       const horizonHours = parseInt(horizon, 10) || 24;
 
       const [trendData, peakData, predData] = await Promise.all([
-        getOccupancyTrend(period, period > 24 ? 240 : 60), // Coarser interval for longer periods
-        getPeakHours(30), // Always analyze last 30 days for peak hours
-        getPrediction(period, horizonHours), // Predict next 24h based on period
+        getOccupancyTrend(period, period > 24 ? 240 : 60),
+        getPeakHours(30),
+        getPrediction(period, horizonHours),
       ]);
 
-      console.log("Trend data:", trendData);
-      console.log("Peak data:", peakData);
-      console.log("Prediction data:", predData);
-
-      // Handle both response formats:
-      // 1. Direct: {kpi: "name", data: {...}}
-      // 2. Nested: {level_3_analytics: {occupancy_trend: {...}}}
       const trendResult =
         trendData?.level_3_analytics?.occupancy_trend ||
         trendData?.data ||
@@ -87,49 +89,16 @@ export default function AnalyticsScreen() {
       setError(true);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
+  const handleRefresh = () => {
+    setRefreshing(true);
+    loadData();
+  };
+
   const styles = StyleSheet.create({
-    container: {
-      flex: 1,
-      backgroundColor: theme.background,
-    },
-    scrollView: {
-      padding: 20,
-    },
-    header: {
-      marginBottom: 20,
-    },
-    title: {
-      fontSize: 28,
-      fontWeight: "bold",
-      color: theme.text,
-      marginBottom: 5,
-    },
-    subtitle: {
-      fontSize: 14,
-      color: "#888",
-    },
-    card: {
-      backgroundColor: "#1E1E1E",
-      borderRadius: 12,
-      padding: 16,
-      marginBottom: 20,
-      borderWidth: 1,
-      borderColor: "#333",
-    },
-    cardTitle: {
-      fontSize: 18,
-      fontWeight: "600",
-      color: theme.text,
-      marginBottom: 5,
-    },
-    cardSubtitle: {
-      fontSize: 12,
-      color: "#AAA",
-      marginBottom: 15,
-    },
     filterRow: {
       flexDirection: "row",
       marginBottom: 20,
@@ -139,21 +108,23 @@ export default function AnalyticsScreen() {
       paddingHorizontal: 16,
       paddingVertical: 8,
       borderRadius: 20,
-      backgroundColor: "#2C2C2C",
+      backgroundColor: Platform.OS === "ios" ? "rgba(0,0,0,0.05)" : "#2C2C2C",
       borderWidth: 1,
-      borderColor: "#444",
+      borderColor: "rgba(128,128,128,0.2)",
     },
     filterButtonActive: {
       backgroundColor: theme.tint,
       borderColor: theme.tint,
     },
     filterText: {
-      color: "#CCC",
+      color: theme.text,
       fontSize: 14,
+      opacity: 0.7,
     },
     filterTextActive: {
       color: "#FFF",
       fontWeight: "bold",
+      opacity: 1,
     },
     statRow: {
       flexDirection: "row",
@@ -171,11 +142,11 @@ export default function AnalyticsScreen() {
     },
     statLabel: {
       fontSize: 12,
-      color: "#888",
+      opacity: 0.6,
       marginTop: 4,
     },
     predictionBadge: {
-      backgroundColor: "#2C2C2C",
+      backgroundColor: "rgba(255, 215, 0, 0.1)",
       paddingHorizontal: 8,
       paddingVertical: 4,
       borderRadius: 4,
@@ -195,19 +166,19 @@ export default function AnalyticsScreen() {
       gap: 10,
     },
     settingLabel: {
-      color: "#CCC",
       fontSize: 14,
+      opacity: 0.7,
     },
     settingInput: {
-      backgroundColor: "#2C2C2C",
-      color: "#FFF",
+      backgroundColor: Platform.OS === "ios" ? "rgba(0,0,0,0.05)" : "#2C2C2C",
+      color: theme.text,
       borderRadius: 6,
       padding: 8,
       width: 60,
       textAlign: "center",
       fontWeight: "bold",
       borderWidth: 1,
-      borderColor: "#444",
+      borderColor: "rgba(128,128,128,0.2)",
     },
     cardHeaderRow: {
       flexDirection: "row",
@@ -230,184 +201,178 @@ export default function AnalyticsScreen() {
       borderRadius: 4,
     },
     legendText: {
-      color: "#CCC",
       fontSize: 10,
-    },
-    loadingContainer: {
-      padding: 50,
-      alignItems: "center",
+      opacity: 0.6,
     },
   });
 
   return (
-    <>
-      <Stack.Screen
-        options={{ title: "Analytics Dashboard", headerShown: true }}
-      />
-      <ScrollView
-        style={styles.container}
-        contentContainerStyle={styles.scrollView}
-      >
-        <View style={styles.header}>
-          <Text style={styles.title}>Inference & Analytics</Text>
-          <Text style={styles.subtitle}>
-            Historical analysis and future predictions
-          </Text>
-        </View>
+    <PageLayout
+      title="Inference & Analytics"
+      subtitle="Historical analysis and future predictions"
+      refreshing={refreshing}
+      onRefresh={handleRefresh}
+    >
+      {/* Prediction Config */}
+      <View style={styles.settingRow}>
+        <ThemedText style={styles.settingLabel}>
+          Prediction Horizon (Hours):
+        </ThemedText>
+        <TextInput
+          style={styles.settingInput}
+          value={horizon}
+          onChangeText={setHorizon}
+          keyboardType="numeric"
+          maxLength={3}
+        />
+      </View>
 
-        {/* Prediction Config */}
-        <View style={styles.settingRow}>
-          <Text style={styles.settingLabel}>Prediction Horizon (Hours):</Text>
-          <TextInput
-            style={styles.settingInput}
-            value={horizon}
-            onChangeText={setHorizon}
-            keyboardType="numeric"
-            maxLength={3}
-          />
-        </View>
-
-        {/* Period Selector */}
-        <View style={styles.filterRow}>
-          {[
-            { label: "24 Hours", value: 24 },
-            { label: "7 Days", value: 168 },
-            { label: "30 Days", value: 720 },
-          ].map((item) => (
-            <TouchableOpacity
-              key={item.value}
+      {/* Period Selector */}
+      <View style={styles.filterRow}>
+        {[
+          { label: "24 Hours", value: 24 },
+          { label: "7 Days", value: 168 },
+          { label: "30 Days", value: 720 },
+        ].map((item) => (
+          <TouchableOpacity
+            key={item.value}
+            style={[
+              styles.filterButton,
+              period === item.value && styles.filterButtonActive,
+            ]}
+            onPress={() => setPeriod(item.value)}
+          >
+            <ThemedText
               style={[
-                styles.filterButton,
-                period === item.value && styles.filterButtonActive,
+                styles.filterText,
+                period === item.value && styles.filterTextActive,
               ]}
-              onPress={() => setPeriod(item.value)}
             >
-              <Text
-                style={[
-                  styles.filterText,
-                  period === item.value && styles.filterTextActive,
-                ]}
-              >
-                {item.label}
-              </Text>
-            </TouchableOpacity>
-          ))}
+              {item.label}
+            </ThemedText>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      {loading && !refreshing ? (
+        <View style={{ padding: 50, alignItems: "center" }}>
+          <ActivityIndicator size="large" color={theme.tint} />
+          <ThemedText style={{ marginTop: 20, opacity: 0.6 }}>
+            Cargando análisis...
+          </ThemedText>
         </View>
+      ) : error ? (
+        <View style={{ padding: 50, alignItems: "center" }}>
+          <ThemedText style={{ opacity: 0.6, marginBottom: 20 }}>
+            No se pudieron cargar los datos
+          </ThemedText>
+          <TouchableOpacity
+            onPress={loadData}
+            style={{
+              paddingHorizontal: 20,
+              paddingVertical: 10,
+              backgroundColor: theme.tint,
+              borderRadius: 8,
+            }}
+          >
+            <ThemedText style={{ color: "white", fontWeight: "bold" }}>
+              Reintentar
+            </ThemedText>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <>
+          {/* Occupancy Trend & Prediction */}
+          <ThemedCard>
+            <View style={styles.cardHeaderRow}>
+              <View>
+                <ThemedText
+                  type="subtitle"
+                  style={{ fontSize: 18, fontWeight: "600", marginBottom: 5 }}
+                >
+                  Occupancy Trend & Prediction
+                </ThemedText>
+                {predictions && (
+                  <View style={styles.predictionBadge}>
+                    <ThemedText style={styles.predictionText}>
+                      Trend: {predictions.trend_direction}
+                    </ThemedText>
+                  </View>
+                )}
+              </View>
+              <View style={styles.legend}>
+                <View style={styles.legendItem}>
+                  <View
+                    style={[styles.legendDot, { backgroundColor: theme.tint }]}
+                  />
+                  <ThemedText style={styles.legendText}>Historical</ThemedText>
+                </View>
+                <View style={styles.legendItem}>
+                  <View
+                    style={[styles.legendDot, { backgroundColor: "#FFD700" }]}
+                  />
+                  <ThemedText style={styles.legendText}>Predicted</ThemedText>
+                </View>
+              </View>
+            </View>
 
-        {loading ? (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color={theme.tint} />
-            <Text style={{ marginTop: 20, opacity: 0.6, color: theme.text }}>
-              Cargando análisis...
-            </Text>
-          </View>
-        ) : error ? (
-          <View style={styles.loadingContainer}>
-            <Text style={{ opacity: 0.6, marginBottom: 20, color: theme.text }}>
-              No se pudieron cargar los datos
-            </Text>
-            <TouchableOpacity
-              onPress={loadData}
-              style={{
-                paddingHorizontal: 20,
-                paddingVertical: 10,
-                backgroundColor: theme.tint,
-                borderRadius: 8,
-              }}
+            <ThemedText
+              style={{ fontSize: 12, opacity: 0.6, marginBottom: 15 }}
             >
-              <Text style={{ color: "white", fontWeight: "bold" }}>
-                Reintentar
-              </Text>
-            </TouchableOpacity>
-          </View>
-        ) : (
-          <>
-            {/* Occupancy Trend & Prediction */}
-            <View style={styles.card}>
-              <View style={styles.cardHeaderRow}>
-                <View>
-                  <Text style={styles.cardTitle}>
-                    Occupancy Trend & Prediction
-                  </Text>
-                  {predictions && (
-                    <View style={styles.predictionBadge}>
-                      <Text style={styles.predictionText}>
-                        Trend: {predictions.trend_direction}
-                      </Text>
-                    </View>
-                  )}
-                </View>
-                <View style={styles.legend}>
-                  <View style={styles.legendItem}>
-                    <View
-                      style={[
-                        styles.legendDot,
-                        { backgroundColor: theme.tint },
-                      ]}
-                    />
-                    <Text style={styles.legendText}>Historical</Text>
-                  </View>
-                  <View style={styles.legendItem}>
-                    <View
-                      style={[styles.legendDot, { backgroundColor: "#FFD700" }]}
-                    />
-                    <Text style={styles.legendText}>Predicted</Text>
-                  </View>
-                </View>
+              Slope: {predictions?.slope?.toFixed(4) ?? "N/A"}. Showing forecast
+              for next {parseInt(horizon) || 24} hours.
+            </ThemedText>
+
+            <LineChart
+              data={trends}
+              prediction={predictions?.predictions}
+              width={chartWidth}
+              height={250}
+              color={theme.tint}
+            />
+          </ThemedCard>
+
+          {/* Peak Hours Clustering */}
+          <ThemedCard title="Peak Hours Analysis" style={{ marginTop: 20 }}>
+            <ThemedText
+              style={{ fontSize: 12, opacity: 0.6, marginBottom: 15 }}
+            >
+              Top 5 busiest hours based on {period / 24} days of data. Darker
+              red = higher occupancy.
+            </ThemedText>
+            <BarChart
+              data={peakHours}
+              width={chartWidth}
+              height={250}
+              color="#FF6B6B"
+            />
+          </ThemedCard>
+
+          {/* Stats Summary */}
+          <ThemedCard title="Summary Statistics" style={{ marginTop: 20 }}>
+            <View style={styles.statRow}>
+              <View style={styles.statItem}>
+                <ThemedText style={styles.statValue}>
+                  {trends.length}
+                </ThemedText>
+                <ThemedText style={styles.statLabel}>Data Points</ThemedText>
               </View>
-
-              <Text style={styles.cardSubtitle}>
-                Slope: {predictions?.slope?.toFixed(4) ?? "N/A"}. Showing
-                forecast for next {parseInt(horizon) || 24} hours.
-              </Text>
-
-              <LineChart
-                data={trends}
-                prediction={predictions?.predictions}
-                width={chartWidth}
-                height={250}
-                color={theme.tint}
-              />
-            </View>
-
-            {/* Peak Hours Clustering */}
-            <View style={styles.card}>
-              <Text style={styles.cardTitle}>Peak Hours Analysis</Text>
-              <Text style={styles.cardSubtitle}>
-                Top 5 busiest hours based on {period / 24} days of data. Darker
-                red = higher occupancy.
-              </Text>
-              <BarChart
-                data={peakHours}
-                width={chartWidth}
-                height={250}
-                color="#FF6B6B"
-              />
-            </View>
-
-            {/* Stats Summary */}
-            <View style={styles.card}>
-              <Text style={styles.cardTitle}>Summary Statistics</Text>
-              <View style={styles.statRow}>
-                <View style={styles.statItem}>
-                  <Text style={styles.statValue}>{trends.length}</Text>
-                  <Text style={styles.statLabel}>Data Points</Text>
-                </View>
-                <View style={styles.statItem}>
-                  <Text style={styles.statValue}>{period / 24} Days</Text>
-                  <Text style={styles.statLabel}>Analyzed</Text>
-                </View>
-                <View style={styles.statItem}>
-                  <Text style={styles.statValue}>
-                    {peakHours.length > 0 ? peakHours[0].hour + ":00" : "N/A"}
-                  </Text>
-                  <Text style={styles.statLabel}>Peak Hour</Text>
-                </View>
+              <View style={styles.statItem}>
+                <ThemedText style={styles.statValue}>
+                  {period / 24} Days
+                </ThemedText>
+                <ThemedText style={styles.statLabel}>Analyzed</ThemedText>
+              </View>
+              <View style={styles.statItem}>
+                <ThemedText style={styles.statValue}>
+                  {peakHours.length > 0 ? peakHours[0].hour + ":00" : "N/A"}
+                </ThemedText>
+                <ThemedText style={styles.statLabel}>Peak Hour</ThemedText>
               </View>
             </View>
-          </>
-        )}
-      </ScrollView>
-    </>
+          </ThemedCard>
+        </>
+      )}
+    </PageLayout>
   );
 }
