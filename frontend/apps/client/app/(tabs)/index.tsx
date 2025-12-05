@@ -1,53 +1,95 @@
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
+import { AnimatedCard } from "@/components/animated-card";
 import { getParkingStatus, getRoiConfig, RoiSpace } from "@repo/core";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import {
   ActivityIndicator,
   ScrollView,
   StyleSheet,
   TouchableOpacity,
   View,
+  RefreshControl,
+  Dimensions,
 } from "react-native";
 import Svg, { Polygon, Text as SvgText } from "react-native-svg";
+import Animated, {
+  FadeIn,
+  FadeOut,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+  withRepeat,
+  withSequence,
+  withTiming,
+} from "react-native-reanimated";
+import { Colors, Spacing, BorderRadius, Shadows } from "@/constants/theme";
+import { useColorScheme } from "@/hooks/use-color-scheme";
+import {
+  getContainerPadding,
+  getGridColumns,
+  responsive,
+  scaleFontSize,
+} from "@/constants/responsive";
 
 const DEVICE_ID = "TeraSpot-Processor"; // Hardcoded for demo
 
 export default function HomeScreen() {
+  const colorScheme = useColorScheme();
+  const colors = Colors[colorScheme ?? "light"];
+
   const [polygons, setPolygons] = useState<RoiSpace[]>([]);
   const [statuses, setStatuses] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
   const [viewMode, setViewMode] = useState<"map" | "grid">("map");
+  const [headerExpanded, setHeaderExpanded] = useState(true);
 
   const ASPECT_RATIO = 16 / 9;
+  const padding = getContainerPadding();
+
+  // Calculate statistics
+  const stats = useMemo(() => {
+    const total = polygons.length;
+    const occupied = Object.values(statuses).filter((s) => s === "occupied").length;
+    const vacant = Object.values(statuses).filter((s) => s === "vacant").length;
+    const unknown = total - occupied - vacant;
+    return { total, occupied, vacant, unknown };
+  }, [polygons, statuses]);
+
+  const fetchStatus = async () => {
+    try {
+      const spaces = await getParkingStatus();
+      const statusMap: Record<string, string> = {};
+      spaces.forEach((space) => {
+        statusMap[space.space_id] = space.status;
+      });
+      setStatuses(statusMap);
+    } catch (error) {
+      console.error("Failed to fetch status", error);
+    }
+  };
+
+  const loadConfig = async () => {
+    try {
+      const spaces = await getRoiConfig(DEVICE_ID);
+      setPolygons(spaces);
+      await fetchStatus();
+    } catch (error) {
+      console.error("Failed to load config", error);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    loadConfig();
+  };
 
   useEffect(() => {
-    const fetchStatus = async () => {
-      try {
-        const spaces = await getParkingStatus();
-        const statusMap: Record<string, string> = {};
-        spaces.forEach((space) => {
-          statusMap[space.space_id] = space.status;
-        });
-        setStatuses(statusMap);
-      } catch (error) {
-        console.error("Failed to fetch status", error);
-      }
-    };
-
-    const loadConfig = async () => {
-      try {
-        const spaces = await getRoiConfig(DEVICE_ID);
-        setPolygons(spaces);
-        await fetchStatus();
-      } catch (error) {
-        console.error("Failed to load config", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
     loadConfig();
 
     const wsUrl =
@@ -155,41 +197,106 @@ export default function HomeScreen() {
 
   const getStatusColor = (spaceId: string) => {
     const status = statuses[spaceId];
-    if (status === "occupied") return "rgba(255, 0, 0, 0.6)"; // Red
-    if (status === "vacant") return "rgba(0, 255, 0, 0.6)"; // Green
-    return "rgba(128, 128, 128, 0.3)"; // Grey (Unknown)
+    if (status === "occupied") return colors.error;
+    if (status === "vacant") return colors.success;
+    return colors.textSecondary;
   };
+
+  const gridColumns = getGridColumns(responsive(80, 100, 120));
 
   return (
     <ThemedView style={styles.container}>
-      <View style={styles.header}>
-        <ThemedText type="title">Parking Availability</ThemedText>
-        <View style={styles.controls}>
-          <View style={styles.legend}>
-            <View style={styles.legendItem}>
-              <View style={[styles.dot, { backgroundColor: "green" }]} />
-              <ThemedText>Vacant</ThemedText>
-            </View>
-            <View style={styles.legendItem}>
-              <View style={[styles.dot, { backgroundColor: "red" }]} />
-              <ThemedText>Occupied</ThemedText>
-            </View>
-          </View>
+      {/* Glassmorphism Header */}
+      <ThemedView glass style={[styles.header, { paddingHorizontal: padding }]}>
+        <View style={styles.headerTop}>
+          <ThemedText type="title" style={styles.headerTitle}>
+            Parking Availability
+          </ThemedText>
           <TouchableOpacity
-            style={styles.toggleButton}
-            onPress={() => setViewMode(viewMode === "map" ? "grid" : "map")}
+            style={[styles.collapseButton, { backgroundColor: colors.tint }]}
+            onPress={() => setHeaderExpanded(!headerExpanded)}
           >
-            <ThemedText style={styles.toggleText}>
-              {viewMode === "map" ? "Switch to Grid" : "Switch to Map"}
+            <ThemedText style={styles.collapseIcon}>
+              {headerExpanded ? "▲" : "▼"}
             </ThemedText>
           </TouchableOpacity>
         </View>
-      </View>
 
+        {headerExpanded && (
+          <>
+            {/* Stats Summary */}
+            <View style={styles.statsContainer}>
+              <AnimatedCard delay={100} style={styles.statCard}>
+                <ThemedText type="display" style={{ color: colors.success }}>
+                  {stats.vacant}
+                </ThemedText>
+                <ThemedText type="caption">Vacant</ThemedText>
+              </AnimatedCard>
+
+              <AnimatedCard delay={200} style={styles.statCard}>
+                <ThemedText type="display" style={{ color: colors.error }}>
+                  {stats.occupied}
+                </ThemedText>
+                <ThemedText type="caption">Occupied</ThemedText>
+              </AnimatedCard>
+
+              <AnimatedCard delay={300} style={styles.statCard}>
+                <ThemedText type="display" style={{ color: colors.tint }}>
+                  {stats.total}
+                </ThemedText>
+                <ThemedText type="caption">Total</ThemedText>
+              </AnimatedCard>
+            </View>
+
+            {/* Controls */}
+            <View style={styles.controls}>
+              <View style={styles.legend}>
+                <View style={styles.legendItem}>
+                  <View style={[styles.dot, { backgroundColor: colors.success }]} />
+                  <ThemedText style={styles.legendText}>Vacant</ThemedText>
+                </View>
+                <View style={styles.legendItem}>
+                  <View style={[styles.dot, { backgroundColor: colors.error }]} />
+                  <ThemedText style={styles.legendText}>Occupied</ThemedText>
+                </View>
+              </View>
+              <TouchableOpacity
+                style={[
+                  styles.toggleButton,
+                  { backgroundColor: colors.tint },
+                  Shadows.md,
+                ]}
+                onPress={() => setViewMode(viewMode === "map" ? "grid" : "map")}
+              >
+                <ThemedText style={styles.toggleText}>
+                  {viewMode === "map" ? "Grid View" : "Map View"}
+                </ThemedText>
+              </TouchableOpacity>
+            </View>
+          </>
+        )}
+      </ThemedView>
+
+      {/* Content */}
       {viewMode === "map" ? (
-        <View style={styles.mapContainer} onLayout={handleLayout}>
+        <View
+          style={[
+            styles.mapContainer,
+            {
+              marginHorizontal: padding,
+              marginTop: Spacing.md,
+              borderRadius: BorderRadius.xl,
+            },
+          ]}
+          onLayout={handleLayout}
+        >
           {loading ? (
-            <ActivityIndicator size="large" color="#fff" />
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color={colors.tint} />
+              <ThemedText style={styles.loadingText}>
+                Loading parking data...
+              </ThemedText>
+            </View>
           ) : (
             <Svg style={StyleSheet.absoluteFill}>
               {polygons.map((poly, index) => {
@@ -199,14 +306,15 @@ export default function HomeScreen() {
                     <Polygon
                       points={getPointsString(poly.polygon)}
                       fill={getStatusColor(poly.space_id)}
-                      stroke="white"
+                      stroke={colors.cardBorder}
                       strokeWidth="2"
+                      opacity={0.8}
                     />
                     <SvgText
                       x={labelPos.x}
                       y={labelPos.y}
                       fill="white"
-                      fontSize="12"
+                      fontSize={scaleFontSize(12)}
                       fontWeight="bold"
                       textAnchor="middle"
                       alignmentBaseline="middle"
@@ -220,28 +328,55 @@ export default function HomeScreen() {
           )}
         </View>
       ) : (
-        <ScrollView style={styles.gridContainer}>
+        <ScrollView
+          style={styles.gridContainer}
+          contentContainerStyle={[
+            styles.gridContent,
+            { paddingHorizontal: padding, marginTop: 8 },
+          ]}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          }
+        >
           {loading ? (
-            <ActivityIndicator size="large" color="#fff" />
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color={colors.tint} />
+              <ThemedText style={styles.loadingText}>
+                Loading parking data...
+              </ThemedText>
+            </View>
           ) : (
             <View style={styles.grid}>
               {polygons.map((poly, index) => {
                 const id = poly.space_id.replace("space-", "");
                 const status = statuses[poly.space_id];
                 const isOccupied = status === "occupied";
+                const isVacant = status === "vacant";
+
                 return (
-                  <View
+                  <AnimatedCard
                     key={index}
-                    style={[
-                      styles.gridItem,
-                      { backgroundColor: isOccupied ? "#ff4444" : "#44ff44" },
-                    ]}
+                    delay={index * 30}
+                    style={{
+                      ...styles.gridItem,
+                      backgroundColor: isOccupied
+                        ? colors.error
+                        : isVacant
+                          ? colors.success
+                          : colors.textSecondary,
+                      width: responsive(
+                        (Dimensions.get("window").width - padding * 2 - Spacing.md * (gridColumns - 1)) / gridColumns,
+                        120,
+                        140
+                      ),
+                      ...Shadows.lg,
+                    }}
                   >
                     <ThemedText style={styles.gridText}>{id}</ThemedText>
                     <ThemedText style={styles.statusText}>
-                      {isOccupied ? "OCCUPIED" : "VACANT"}
+                      {isOccupied ? "OCCUPIED" : isVacant ? "VACANT" : "UNKNOWN"}
                     </ThemedText>
-                  </View>
+                  </AnimatedCard>
                 );
               })}
             </View>
@@ -257,75 +392,124 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
-    padding: 20,
-    paddingTop: 50,
+    paddingTop: responsive(50, 60, 70),
+    paddingBottom: Spacing.lg,
+  },
+  headerTop: {
+    flexDirection: "row",
+    justifyContent: "space-between",
     alignItems: "center",
+    width: "100%",
+    marginBottom: Spacing.md,
+  },
+  headerTitle: {
+    flex: 1,
+  },
+  collapseButton: {
+    width: 36,
+    height: 36,
+    borderRadius: BorderRadius.round,
+    justifyContent: "center",
+    alignItems: "center",
+    ...Shadows.sm,
+  },
+  collapseIcon: {
+    fontSize: scaleFontSize(12),
+    color: "#fff",
+    fontWeight: "bold",
+  },
+  statsContainer: {
+    flexDirection: "row",
+    gap: Spacing.md,
+    marginBottom: Spacing.md,
+    width: "100%",
+    justifyContent: "center",
+  },
+  statCard: {
+    alignItems: "center",
+    minWidth: responsive(70, 90, 100),
+    padding: Spacing.md,
   },
   controls: {
-    flexDirection: "row",
+    flexDirection: responsive("column", "row", "row") as any,
     justifyContent: "space-between",
     width: "100%",
     alignItems: "center",
-    marginTop: 10,
+    gap: Spacing.md,
   },
   legend: {
     flexDirection: "row",
-    gap: 20,
+    gap: Spacing.lg,
   },
   legendItem: {
     flexDirection: "row",
     alignItems: "center",
+    gap: Spacing.sm,
+  },
+  legendText: {
+    fontSize: scaleFontSize(14),
   },
   dot: {
     width: 12,
     height: 12,
-    borderRadius: 6,
-    marginRight: 8,
+    borderRadius: BorderRadius.round,
   },
   toggleButton: {
-    backgroundColor: "#555",
-    padding: 8,
-    borderRadius: 5,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.lg,
   },
   toggleText: {
     color: "white",
     fontWeight: "bold",
+    fontSize: scaleFontSize(14),
   },
   mapContainer: {
     flex: 1,
-    margin: 20,
+    marginBottom: Spacing.lg,
     backgroundColor: "#000",
-    borderRadius: 10,
     overflow: "hidden",
   },
   gridContainer: {
     flex: 1,
-    padding: 10,
+  },
+  gridContent: {
+    paddingBottom: Spacing.xxxl,
   },
   grid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    justifyContent: "center",
-    gap: 10,
-    paddingBottom: 40,
+    gap: Spacing.md,
+    justifyContent: "flex-start",
   },
   gridItem: {
-    width: 80,
-    height: 80,
-    borderRadius: 10,
+    aspectRatio: 1,
+    borderRadius: BorderRadius.lg,
     justifyContent: "center",
     alignItems: "center",
-    elevation: 3,
+    padding: Spacing.sm,
   },
   gridText: {
-    fontSize: 20,
+    fontSize: scaleFontSize(20),
     fontWeight: "bold",
-    color: "#000",
+    color: "#fff",
   },
   statusText: {
-    fontSize: 10,
+    fontSize: scaleFontSize(10),
     fontWeight: "bold",
-    color: "#000",
-    marginTop: 5,
+    color: "#fff",
+    marginTop: Spacing.xs,
+    letterSpacing: 0.5,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    gap: Spacing.md,
+  },
+  loadingText: {
+    fontSize: scaleFontSize(14),
+    opacity: 0.7,
   },
 });
+
