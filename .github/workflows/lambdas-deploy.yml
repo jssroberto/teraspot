@@ -43,6 +43,11 @@ jobs:
           cd backend
           CI=true pytest lambdas/config_saver/tests/ -v
 
+      - name: Test kpi_monitor
+        run: |
+          cd backend
+          pytest lambdas/kpi_monitor/tests/ -v
+
   deploy:
     needs: test
     runs-on: ubuntu-22.04
@@ -95,4 +100,46 @@ jobs:
           cd package && zip -r ../lambda.zip . && cd ..
           aws lambda update-function-code \
             --function-name teraspot-config-saver \
+            --zip-file fileb://lambda.zip
+
+      - name: Deploy kpi_monitor
+        run: |
+          cd backend/lambdas/kpi_monitor
+          pip install -r requirements.txt -t package/
+          cp lambda_function.py package/
+          cd package && zip -r ../lambda.zip . && cd ..
+          aws lambda update-function-code \
+            --function-name teraspot-kpi-monitor \
+            --zip-file fileb://lambda.zip
+
+      - name: Deploy device_command
+        run: |
+          cd backend/lambdas/device_command
+          # No requirements.txt for this one yet, but good practice to check
+          if [ -f requirements.txt ]; then pip install -r requirements.txt -t package/; fi
+          mkdir -p package
+          cp lambda_function.py package/
+          cd package && zip -r ../lambda.zip . && cd ..
+          aws lambda update-function-code \
+            --function-name teraspot-device-command \
+            --zip-file fileb://lambda.zip
+
+      - name: Deploy ws_connect
+        run: |
+          cd backend/lambdas/ws_connect
+          mkdir -p package
+          cp lambda_function.py package/
+          cd package && zip -r ../lambda.zip . && cd ..
+          aws lambda update-function-code \
+            --function-name teraspot-ws-connect \
+            --zip-file fileb://lambda.zip
+
+      - name: Deploy ws_disconnect
+        run: |
+          cd backend/lambdas/ws_disconnect
+          mkdir -p package
+          cp lambda_function.py package/
+          cd package && zip -r ../lambda.zip . && cd ..
+          aws lambda update-function-code \
+            --function-name teraspot-ws-disconnect \
             --zip-file fileb://lambda.zip

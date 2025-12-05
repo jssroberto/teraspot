@@ -42,3 +42,8 @@ jobs:
         run: |
           cd backend
           CI=true pytest lambdas/config_saver/tests/ -v
+
+      - name: Test kpi_monitor
+        run: |
+          cd backend
+          pytest lambdas/kpi_monitor/tests/ -v
