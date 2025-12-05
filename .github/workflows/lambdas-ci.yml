@@ -10,6 +10,12 @@ on:
 jobs:
   test:
     runs-on: ubuntu-22.04
+    env:
+      AWS_ACCESS_KEY_ID: testing
+      AWS_SECRET_ACCESS_KEY: testing
+      AWS_SECURITY_TOKEN: testing
+      AWS_SESSION_TOKEN: testing
+      AWS_DEFAULT_REGION: us-east-1
     steps:
       - uses: actions/checkout@v3
 
@@ -42,3 +48,8 @@ jobs:
         run: |
           cd backend
           CI=true pytest lambdas/config_saver/tests/ -v
+
+      - name: Test kpi_monitor
+        run: |
+          cd backend
+          pytest lambdas/kpi_monitor/tests/ -v
