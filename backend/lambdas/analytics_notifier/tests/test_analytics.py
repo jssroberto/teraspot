@@ -221,60 +221,70 @@ class TestAnalyticsNotifierEdgeCases:
         result = lambda_handler(event, None)
         assert result["statusCode"] == 200
 
-
     @patch("lambda_function.sqs")
     @patch("lambda_function.current_table")
     @patch("lambda_function.history_table")
     def test_scheduled_event_health_check(self, mock_history, mock_current, mock_sqs):
         """Test: Health check detects dead sensors"""
         from datetime import datetime, timedelta, timezone
-        
+
         # Setup mock data
         now = datetime.now(timezone.utc)
         stale_time = (now - timedelta(minutes=10)).isoformat()
         fresh_time = now.isoformat()
-        
+
         mock_current.scan.return_value = {
             "Items": [
                 {
                     "space_id": "A1",
                     "device_id": "dev1",
                     "last_heartbeat": stale_time,
-                    "is_alive": True
+                    "is_alive": True,
                 },
                 {
                     "space_id": "A2",
                     "device_id": "dev2",
                     "last_heartbeat": fresh_time,
-                    "is_alive": True
+                    "is_alive": True,
                 },
                 {
                     "space_id": "A3",
                     "device_id": "dev3",
                     "last_heartbeat": stale_time,
-                    "is_alive": False # Already dead
-                }
+                    "is_alive": False,  # Already dead
+                },
             ]
         }
-        
+
         event = {"source": "aws.events"}
         result = lambda_handler(event, None)
-        
+
         assert result["statusCode"] == 200
         body = json.loads(result["body"])
-        assert body["inactive_devices"] == 1 # Only A1 should be counted as newly inactive
-        
+        assert (
+            body["inactive_devices"] == 1
+        )  # Only A1 should be counted as newly inactive
+
         # Verify A1 was updated to dead
         mock_current.update_item.assert_called_once()
         call_args = mock_current.update_item.call_args
-        assert call_args[1]['Key'] == {'space_id': 'A1'}
-        assert call_args[1]['ExpressionAttributeValues'][':val'] is False
-        
+        assert call_args[1]["Key"] == {"space_id": "A1"}
+        assert call_args[1]["ExpressionAttributeValues"][":val"] is False
+
         # Verify A1 was written to history
-        mock_history.put_item.assert_called_once()
-        history_item = mock_history.put_item.call_args[1]['Item']
-        assert history_item['space_id'] == 'A1'
-        assert history_item['status'] == 'dead'
+        # Verify A1 was written to history (Status update + Alert history)
+        assert mock_history.put_item.call_count == 2
+
+        # Verify the 'dead' status record exists in the calls
+        calls = mock_history.put_item.call_args_list
+        dead_status_found = False
+        for call in calls:
+            item = call[1]["Item"]
+            if item.get("space_id") == "A1" and item.get("status") == "dead":
+                dead_status_found = True
+                break
+
+        assert dead_status_found, "Dead status record not found in history calls"
 
 
 if __name__ == "__main__":
