@@ -32,3 +32,9 @@ variable "dynamodb_table_name" {
   type        = string
   default     = "parking-spaces-dev"
 }
+
+variable "camera_sim_count" {
+  description = "Number of Camera Hub instances to launch (0 or 1)"
+  type        = number
+  default     = 1
+}
