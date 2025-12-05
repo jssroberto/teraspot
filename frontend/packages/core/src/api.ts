@@ -146,7 +146,7 @@ export const getParkingStatus = async (): Promise<ParkingStatus[]> => {
     return response.data.spaces || [];
   } catch (error) {
     console.error("Error fetching parking status:", error);
-    return [];
+    throw error; // Propagate error to UI
   }
 };
 
