@@ -7,7 +7,6 @@ import { Stack } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   ScrollView,
   StyleSheet,
   Text,
@@ -22,6 +21,7 @@ export default function AnalyticsScreen() {
   const theme = Colors[colorScheme];
   const { width: windowWidth } = useWindowDimensions();
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
 
   const [trends, setTrends] = useState<any[]>([]);
   const [predictions, setPredictions] = useState<any>(null); // slope, intercept, points
@@ -54,6 +54,7 @@ export default function AnalyticsScreen() {
   const loadData = async () => {
     try {
       setLoading(true);
+      setError(false);
 
       const horizonHours = parseInt(horizon, 10) || 24;
 
@@ -83,10 +84,7 @@ export default function AnalyticsScreen() {
       setPredictions(predResult);
     } catch (error) {
       console.error("Failed to load analytics:", error);
-      Alert.alert(
-        "Error",
-        `Failed to load analytics data: ${(error as Error).message}`
-      );
+      setError(true);
     } finally {
       setLoading(false);
     }
@@ -99,20 +97,19 @@ export default function AnalyticsScreen() {
     },
     scrollView: {
       padding: 20,
-      paddingBottom: 40,
     },
     header: {
       marginBottom: 20,
     },
     title: {
-      fontSize: 24,
+      fontSize: 28,
       fontWeight: "bold",
       color: theme.text,
       marginBottom: 5,
     },
     subtitle: {
       fontSize: 14,
-      color: theme.icon,
+      color: "#888",
     },
     card: {
       backgroundColor: "#1E1E1E",
@@ -126,68 +123,67 @@ export default function AnalyticsScreen() {
       fontSize: 18,
       fontWeight: "600",
       color: theme.text,
-      marginBottom: 15,
+      marginBottom: 5,
     },
     cardSubtitle: {
       fontSize: 12,
       color: "#AAA",
-      marginBottom: 10,
+      marginBottom: 15,
     },
     filterRow: {
       flexDirection: "row",
       marginBottom: 20,
-      backgroundColor: "#333",
-      borderRadius: 8,
-      padding: 4,
+      gap: 10,
     },
     filterButton: {
-      flex: 1,
+      paddingHorizontal: 16,
       paddingVertical: 8,
-      alignItems: "center",
-      borderRadius: 6,
+      borderRadius: 20,
+      backgroundColor: "#2C2C2C",
+      borderWidth: 1,
+      borderColor: "#444",
     },
     filterButtonActive: {
       backgroundColor: theme.tint,
+      borderColor: theme.tint,
     },
     filterText: {
       color: "#CCC",
-      fontWeight: "600",
+      fontSize: 14,
     },
     filterTextActive: {
       color: "#FFF",
+      fontWeight: "bold",
     },
     statRow: {
       flexDirection: "row",
       justifyContent: "space-between",
-      marginBottom: 15,
+      marginTop: 10,
     },
     statItem: {
       alignItems: "center",
+      flex: 1,
     },
     statValue: {
       fontSize: 20,
       fontWeight: "bold",
-      color: "#FFF",
+      color: theme.text,
     },
     statLabel: {
       fontSize: 12,
-      color: "#AAA",
+      color: "#888",
+      marginTop: 4,
     },
     predictionBadge: {
-      backgroundColor:
-        predictions?.trend_direction === "INCREASING"
-          ? "#FF4444"
-          : predictions?.trend_direction === "DECREASING"
-            ? "#44AA44"
-            : "#888",
+      backgroundColor: "#2C2C2C",
       paddingHorizontal: 8,
       paddingVertical: 4,
       borderRadius: 4,
       alignSelf: "flex-start",
-      marginBottom: 10,
+      marginTop: 4,
     },
     predictionText: {
-      color: "#FFF",
+      color: "#FFD700",
       fontSize: 12,
       fontWeight: "bold",
     },
@@ -196,11 +192,7 @@ export default function AnalyticsScreen() {
       alignItems: "center",
       justifyContent: "space-between",
       marginBottom: 15,
-      backgroundColor: "#1E1E1E",
-      padding: 12,
-      borderRadius: 8,
-      borderWidth: 1,
-      borderColor: "#333",
+      gap: 10,
     },
     settingLabel: {
       color: "#CCC",
@@ -214,6 +206,8 @@ export default function AnalyticsScreen() {
       width: 60,
       textAlign: "center",
       fontWeight: "bold",
+      borderWidth: 1,
+      borderColor: "#444",
     },
     cardHeaderRow: {
       flexDirection: "row",
@@ -222,8 +216,8 @@ export default function AnalyticsScreen() {
       marginBottom: 10,
     },
     legend: {
-      flexDirection: "row",
-      gap: 12,
+      flexDirection: "column",
+      gap: 4,
     },
     legendItem: {
       flexDirection: "row",
@@ -231,19 +225,25 @@ export default function AnalyticsScreen() {
       gap: 6,
     },
     legendDot: {
-      width: 10,
-      height: 10,
-      borderRadius: 5,
+      width: 8,
+      height: 8,
+      borderRadius: 4,
     },
     legendText: {
       color: "#CCC",
-      fontSize: 12,
+      fontSize: 10,
+    },
+    loadingContainer: {
+      padding: 50,
+      alignItems: "center",
     },
   });
 
   return (
     <>
-      <Stack.Screen options={{ title: "Analytics", headerShown: true }} />
+      <Stack.Screen
+        options={{ title: "Analytics Dashboard", headerShown: true }}
+      />
       <ScrollView
         style={styles.container}
         contentContainerStyle={styles.scrollView}
@@ -295,11 +295,31 @@ export default function AnalyticsScreen() {
         </View>
 
         {loading ? (
-          <ActivityIndicator
-            size="large"
-            color={theme.tint}
-            style={{ marginTop: 20 }}
-          />
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={theme.tint} />
+            <Text style={{ marginTop: 20, opacity: 0.6, color: theme.text }}>
+              Cargando análisis...
+            </Text>
+          </View>
+        ) : error ? (
+          <View style={styles.loadingContainer}>
+            <Text style={{ opacity: 0.6, marginBottom: 20, color: theme.text }}>
+              No se pudieron cargar los datos
+            </Text>
+            <TouchableOpacity
+              onPress={loadData}
+              style={{
+                paddingHorizontal: 20,
+                paddingVertical: 10,
+                backgroundColor: theme.tint,
+                borderRadius: 8,
+              }}
+            >
+              <Text style={{ color: "white", fontWeight: "bold" }}>
+                Reintentar
+              </Text>
+            </TouchableOpacity>
+          </View>
         ) : (
           <>
             {/* Occupancy Trend & Prediction */}

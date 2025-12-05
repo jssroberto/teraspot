@@ -9,6 +9,7 @@ import { KPIResponse, getKPIData, getRecentAlerts } from "@repo/core";
 import { signOut } from "aws-amplify/auth";
 import React, { useEffect, useRef, useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   RefreshControl,
   ScrollView,
@@ -141,32 +142,10 @@ export default function DashboardScreen() {
     };
   }, []);
 
-  if (loading) {
-    return (
-      <ThemedView style={styles.container}>
-        <View style={styles.header}>
-          <ThemedText type="title">Dashboard KPI</ThemedText>
-        </View>
-        <ThemedText style={styles.loadingText}>Cargando datos...</ThemedText>
-      </ThemedView>
-    );
-  }
-
-  if (!kpiData) {
-    return (
-      <ThemedView style={styles.container}>
-        <View style={styles.header}>
-          <ThemedText type="title">Dashboard KPI</ThemedText>
-        </View>
-        <ThemedText style={styles.errorText}>
-          No hay datos disponibles
-        </ThemedText>
-      </ThemedView>
-    );
-  }
-
-  const { level_1_operational, level_2_performance, level_3_analytics } =
-    kpiData;
+  // Derived state for UI - handle null kpiData safely
+  const level_1_operational = kpiData?.level_1_operational;
+  const level_2_performance = kpiData?.level_2_performance;
+  const level_3_analytics = kpiData?.level_3_analytics;
 
   // Format timestamp
   const formatTimestamp = (timestamp: string) => {
@@ -243,31 +222,44 @@ export default function DashboardScreen() {
   };
 
   // Debug logging for system health
-  const processorDebug = level_2_performance.system_health.device_list.find(
-    (d) => d.device_id.includes("TeraSpot-Processor")
-  );
-  console.log("Processor Debug Info:", processorDebug);
-  console.log(
-    "All Inactive Devices:",
-    level_2_performance.system_health.inactive_devices
-  );
+  if (level_2_performance) {
+    const processorDebug = level_2_performance.system_health.device_list.find(
+      (d) => d.device_id.includes("TeraSpot-Processor")
+    );
+    console.log("Processor Debug Info:", processorDebug);
+    console.log(
+      "All Inactive Devices:",
+      level_2_performance.system_health.inactive_devices
+    );
+  }
 
   // Check if the main processor is offline - checking device_list is more robust as it contains full status
-  const isProcessorOffline = level_2_performance.system_health.device_list.some(
-    (d) =>
-      (d.device_id.includes("TeraSpot-Processor") ||
-        d.device_id.includes("fog")) &&
-      d.status === "inactive"
-  );
+  const isProcessorOffline =
+    level_2_performance?.system_health?.device_list?.some(
+      (d) =>
+        (d.device_id.includes("TeraSpot-Processor") ||
+          d.device_id.includes("fog")) &&
+        d.status === "inactive"
+    ) ?? false;
 
   // Determine overall system status for the badge
-  const systemStatusText = isProcessorOffline
-    ? "SISTEMA OFFLINE"
-    : "SISTEMA OK";
-  const systemStatusColor = isProcessorOffline ? "#F44336" : "#4CAF50";
-  const systemStatusBg = isProcessorOffline
-    ? "rgba(244, 67, 54, 0.1)"
-    : "rgba(76, 175, 80, 0.1)";
+  let systemStatusText = "SISTEMA OK";
+  let systemStatusColor = "#4CAF50";
+  let systemStatusBg = "rgba(76, 175, 80, 0.1)";
+
+  if (loading) {
+    systemStatusText = "CONECTANDO...";
+    systemStatusColor = "#2196F3"; // Blue
+    systemStatusBg = "rgba(33, 150, 243, 0.1)";
+  } else if (!kpiData) {
+    systemStatusText = "SIN DATOS";
+    systemStatusColor = "#9E9E9E"; // Grey
+    systemStatusBg = "rgba(158, 158, 158, 0.1)";
+  } else if (isProcessorOffline) {
+    systemStatusText = "SISTEMA OFFLINE";
+    systemStatusColor = "#F44336"; // Red
+    systemStatusBg = "rgba(244, 67, 54, 0.1)";
+  }
 
   return (
     <ThemedView style={styles.container}>
@@ -329,416 +321,482 @@ export default function DashboardScreen() {
             </View>
           </View>
 
-          {/* KPI Cards Grid */}
-          <View style={[styles.grid, { marginHorizontal: -7.5 }]}>
-            {/* Vacant Spaces */}
-            <View style={[styles.gridItem, { width: `${100 / gridColumns}%` }]}>
-              <KPICard
-                title="ESPACIOS DISPONIBLES"
-                value={
-                  isProcessorOffline
-                    ? "N/A"
-                    : level_1_operational.vacant_spaces.total_vacant
-                }
-                subtitle={
-                  isProcessorOffline
-                    ? "Sistema detenido"
-                    : Object.entries(level_1_operational.vacant_spaces.by_zone)
-                        .map(([zone, count]) => `${zone}: ${count}`)
-                        .join(", ")
-                }
-                status={
-                  isProcessorOffline
-                    ? "error"
-                    : level_1_operational.vacant_spaces.color_code === "GREEN"
-                      ? "success"
-                      : level_1_operational.vacant_spaces.color_code ===
-                          "YELLOW"
-                        ? "warning"
-                        : "error"
-                }
-              />
+          {/* Content Loading State */}
+          {loading ? (
+            <View style={{ padding: 50, alignItems: "center" }}>
+              <ActivityIndicator size="large" color="#2196F3" />
+              <ThemedText style={{ marginTop: 20, opacity: 0.6 }}>
+                Cargando métricas...
+              </ThemedText>
             </View>
-
-            {/* System Health */}
-            <View style={[styles.gridItem, { width: `${100 / gridColumns}%` }]}>
-              <KPICard
-                title="SALUD DEL SISTEMA"
-                value={`${level_2_performance.system_health.uptime_percentage.toFixed(0)}%`}
-                subtitle={`Uptime Dispositivos`}
-                status={getHealthStatus(
-                  level_2_performance.system_health.status
-                )}
+          ) : !kpiData ||
+            !level_1_operational ||
+            !level_2_performance ||
+            !level_3_analytics ? (
+            <View style={{ padding: 50, alignItems: "center" }}>
+              <ThemedText style={{ opacity: 0.6, marginBottom: 20 }}>
+                No se pudieron cargar los datos
+              </ThemedText>
+              <TouchableOpacity
+                onPress={fetchKPIData}
+                style={{
+                  paddingHorizontal: 20,
+                  paddingVertical: 10,
+                  backgroundColor: "#2196F3",
+                  borderRadius: 8,
+                }}
               >
-                <ThemedText
-                  style={[
-                    styles.value,
-                    {
-                      color:
-                        level_2_performance.system_health.status === "HEALTHY"
-                          ? "#4CAF50"
-                          : level_2_performance.system_health.status ===
-                              "DEGRADED"
-                            ? "#FF9800"
-                            : "#F44336",
-                    },
-                  ]}
-                >
-                  {level_2_performance.system_health.uptime_percentage.toFixed(
-                    0
-                  )}
-                  %
+                <ThemedText style={{ color: "white", fontWeight: "bold" }}>
+                  Reintentar
                 </ThemedText>
-                <ThemedText style={styles.subtitle}>
-                  {level_2_performance.system_health.active_devices} /{" "}
-                  {level_2_performance.system_health.total_devices} activos
-                </ThemedText>
-                {level_2_performance.system_health.status === "HEALTHY" ? (
-                  <ThemedText style={styles.statusLabel}>HEALTHY</ThemedText>
-                ) : (
-                  <ThemedText style={styles.statusLabel}>
-                    {level_2_performance.system_health.status}
-                  </ThemedText>
-                )}
-
-                {level_2_performance.system_health.device_list?.filter(
-                  (d) => d.status === "inactive"
-                ).length > 0 && (
-                  <View style={{ marginTop: 12, width: "100%" }}>
-                    <ThemedText
-                      style={{
-                        fontSize: 11,
-                        fontWeight: "bold",
-                        marginBottom: 4,
-                        opacity: 0.7,
-                      }}
-                    >
-                      Cámaras Inactivas:
-                    </ThemedText>
-                    {level_2_performance.system_health.device_list
-                      .filter((d) => d.status === "inactive")
-                      .map((device) => (
-                        <View
-                          key={device.device_id}
-                          style={{
-                            flexDirection: "row",
-                            justifyContent: "space-between",
-                            marginBottom: 2,
-                          }}
-                        >
-                          <ThemedText
-                            style={{ fontSize: 11, color: "#F44336" }}
-                          >
-                            • {device.device_id}
-                          </ThemedText>
-                        </View>
-                      ))}
-                  </View>
-                )}
-              </KPICard>
+              </TouchableOpacity>
             </View>
-
-            {/* Detection Confidence */}
-            <View style={[styles.gridItem, { width: `${100 / gridColumns}%` }]}>
-              <KPICard
-                title="CONFIANZA IA (YOLO)"
-                value={
-                  isProcessorOffline
-                    ? "N/A"
-                    : level_2_performance.detection_confidence.sample_size > 0
-                      ? `${level_2_performance.detection_confidence.average_confidence.toFixed(1)}%`
-                      : "N/A"
-                }
-                subtitle="Calidad (Solo Ocupados)"
-                status={
-                  isProcessorOffline
-                    ? "info"
-                    : getConfidenceStatus(
-                        level_2_performance.detection_confidence.quality_status
-                      )
-                }
-              >
-                <ThemedText
-                  style={[
-                    styles.value,
-                    {
-                      color: isProcessorOffline
-                        ? "#666"
-                        : level_2_performance.detection_confidence
-                              .quality_status === "EXCELLENT" ||
-                            level_2_performance.detection_confidence
-                              .quality_status === "GOOD"
-                          ? "#4CAF50"
-                          : level_2_performance.detection_confidence
-                                .quality_status === "ACCEPTABLE"
-                            ? "#FF9800"
-                            : "#666",
-                    },
-                  ]}
+          ) : (
+            <>
+              {/* KPI Cards Grid */}
+              <View style={[styles.grid, { marginHorizontal: -7.5 }]}>
+                {/* Vacant Spaces */}
+                <View
+                  style={[styles.gridItem, { width: `${100 / gridColumns}%` }]}
                 >
-                  {isProcessorOffline
-                    ? "N/A"
-                    : level_2_performance.detection_confidence.sample_size > 0
-                      ? `${level_2_performance.detection_confidence.average_confidence.toFixed(1)}%`
-                      : "N/A"}
-                </ThemedText>
-                <ThemedText style={styles.subtitle}>
-                  {isProcessorOffline
-                    ? "Sin datos recientes"
-                    : `Muestras (Ocupados): ${level_2_performance.detection_confidence.sample_size}`}
-                </ThemedText>
-                <ThemedText style={styles.statusLabel}>
-                  {isProcessorOffline
-                    ? "OFFLINE"
-                    : level_2_performance.detection_confidence.quality_status}
-                </ThemedText>
-              </KPICard>
-            </View>
+                  <KPICard
+                    title="ESPACIOS DISPONIBLES"
+                    value={
+                      isProcessorOffline
+                        ? "N/A"
+                        : level_1_operational.vacant_spaces.total_vacant
+                    }
+                    subtitle={
+                      isProcessorOffline
+                        ? "Sistema detenido"
+                        : Object.entries(
+                            level_1_operational.vacant_spaces.by_zone
+                          )
+                            .map(([zone, count]) => `${zone}: ${count}`)
+                            .join(", ")
+                    }
+                    status={
+                      isProcessorOffline
+                        ? "error"
+                        : level_1_operational.vacant_spaces.color_code ===
+                            "GREEN"
+                          ? "success"
+                          : level_1_operational.vacant_spaces.color_code ===
+                              "YELLOW"
+                            ? "warning"
+                            : "error"
+                    }
+                  />
+                </View>
 
-            {/* Occupancy Rate */}
-            <View style={[styles.gridItem, { width: `${100 / gridColumns}%` }]}>
-              <KPICard title="OCUPACIÓN ACTUAL">
-                {isProcessorOffline ? (
-                  <View
-                    style={{
-                      alignItems: "center",
-                      justifyContent: "center",
-                      height: 140,
-                    }}
+                {/* System Health */}
+                <View
+                  style={[styles.gridItem, { width: `${100 / gridColumns}%` }]}
+                >
+                  <KPICard
+                    title="SALUD DEL SISTEMA"
+                    value={`${level_2_performance.system_health.uptime_percentage.toFixed(0)}%`}
+                    subtitle={`Uptime Dispositivos`}
+                    status={getHealthStatus(
+                      level_2_performance.system_health.status
+                    )}
                   >
                     <ThemedText
-                      style={{
-                        fontSize: 24,
-                        fontWeight: "bold",
-                        color: "#666",
-                      }}
+                      style={[
+                        styles.value,
+                        {
+                          color:
+                            level_2_performance.system_health.status ===
+                            "HEALTHY"
+                              ? "#4CAF50"
+                              : level_2_performance.system_health.status ===
+                                  "DEGRADED"
+                                ? "#FF9800"
+                                : "#F44336",
+                        },
+                      ]}
                     >
-                      OFFLINE
-                    </ThemedText>
-                  </View>
-                ) : (
-                  <OccupancyGauge
-                    percentage={
-                      level_1_operational.occupancy_rate.occupancy_rate
-                    }
-                    status={level_1_operational.occupancy_rate.status}
-                  />
-                )}
-                <ThemedText style={styles.gaugeSubtitle}>
-                  {isProcessorOffline
-                    ? "Datos no disponibles"
-                    : `${level_1_operational.occupancy_rate.occupied_spaces} / ${level_1_operational.occupancy_rate.total_spaces} espacios`}
-                </ThemedText>
-              </KPICard>
-            </View>
-
-            {/* Message Latency */}
-            <View style={[styles.gridItem, { width: `${100 / gridColumns}%` }]}>
-              <KPICard
-                title="LATENCIA MENSAJES"
-                value={
-                  isProcessorOffline
-                    ? "N/A"
-                    : level_2_performance.message_latency?.status !== "NO_DATA"
-                      ? `${level_2_performance.message_latency?.average_latency_seconds.toFixed(3)}s`
-                      : "N/A"
-                }
-                subtitle="Procesamiento E2E"
-                status={
-                  isProcessorOffline
-                    ? "info"
-                    : getLatencyStatus(
-                        level_2_performance.message_latency?.status || "NO_DATA"
-                      )
-                }
-              >
-                <ThemedText style={styles.value}>
-                  {isProcessorOffline
-                    ? "N/A"
-                    : level_2_performance.message_latency?.status !== "NO_DATA"
-                      ? `${level_2_performance.message_latency?.average_latency_seconds.toFixed(3)}s`
-                      : "N/A"}
-                </ThemedText>
-                <ThemedText style={styles.subtitle}>
-                  {isProcessorOffline
-                    ? ""
-                    : `Max: ${level_2_performance.message_latency?.max_latency_seconds?.toFixed(3) || 0}s`}
-                </ThemedText>
-                <ThemedText style={styles.statusLabel}>
-                  {isProcessorOffline
-                    ? "OFFLINE"
-                    : level_2_performance.message_latency?.status || "NO_DATA"}
-                </ThemedText>
-              </KPICard>
-            </View>
-
-            {/* Parking Duration */}
-            <View style={[styles.gridItem, { width: `${100 / gridColumns}%` }]}>
-              <KPICard
-                title="DURACIÓN PROMEDIO"
-                value={
-                  isProcessorOffline
-                    ? "N/A"
-                    : formatDuration(
-                        level_3_analytics.parking_duration
-                          .average_duration_hours
-                      )
-                }
-                subtitle="Por Sesión"
-                status={isProcessorOffline ? "info" : "info"}
-              >
-                <ThemedText style={styles.value}>
-                  {isProcessorOffline
-                    ? "N/A"
-                    : formatDuration(
-                        level_3_analytics.parking_duration
-                          .average_duration_hours
+                      {level_2_performance.system_health.uptime_percentage.toFixed(
+                        0
                       )}
-                </ThemedText>
-                <ThemedText style={styles.subtitle}>
-                  {isProcessorOffline
-                    ? "Sin datos recientes"
-                    : `Tipo: ${level_3_analytics.parking_duration.usage_type}`}
-                </ThemedText>
-                <ThemedText style={styles.statusLabel}>
-                  {isProcessorOffline
-                    ? "OFFLINE"
-                    : `${level_3_analytics.parking_duration.sample_size} sesiones`}
-                </ThemedText>
-              </KPICard>
-            </View>
+                      %
+                    </ThemedText>
+                    <ThemedText style={styles.subtitle}>
+                      {level_2_performance.system_health.active_devices} /{" "}
+                      {level_2_performance.system_health.total_devices} activos
+                    </ThemedText>
+                    {level_2_performance.system_health.status === "HEALTHY" ? (
+                      <ThemedText style={styles.statusLabel}>
+                        HEALTHY
+                      </ThemedText>
+                    ) : (
+                      <ThemedText style={styles.statusLabel}>
+                        {level_2_performance.system_health.status}
+                      </ThemedText>
+                    )}
 
-            {/* Low Confidence Rate */}
-            <View style={[styles.gridItem, { width: `${100 / gridColumns}%` }]}>
-              <KPICard
-                title="TASA BAJA CONFIANZA"
-                value={
-                  isProcessorOffline
-                    ? "N/A"
-                    : `${level_2_performance.low_confidence_rate.low_confidence_rate.toFixed(1)}%`
-                }
-                subtitle={
-                  isProcessorOffline
-                    ? "Sistema detenido"
-                    : `${level_2_performance.low_confidence_rate.low_confidence_count} eventos`
-                }
-                status={
-                  isProcessorOffline
-                    ? "info"
-                    : getLowConfidenceStatus(
-                        level_2_performance.low_confidence_rate.status
-                      )
-                }
-              >
-                <ThemedText style={styles.value}>
-                  {isProcessorOffline
-                    ? "N/A"
-                    : `${level_2_performance.low_confidence_rate.low_confidence_rate.toFixed(1)}%`}
-                </ThemedText>
-                <ThemedText style={styles.subtitle}>
-                  {isProcessorOffline
-                    ? "Sin datos recientes"
-                    : `${level_2_performance.low_confidence_rate.low_confidence_count} / ${level_2_performance.low_confidence_rate.total_events} eventos`}
-                </ThemedText>
-                <ThemedText style={styles.statusLabel}>
-                  {isProcessorOffline
-                    ? "OFFLINE"
-                    : level_2_performance.low_confidence_rate.status}
-                </ThemedText>
-              </KPICard>
-            </View>
-          </View>
+                    {level_2_performance.system_health.device_list?.filter(
+                      (d) => d.status === "inactive"
+                    ).length > 0 && (
+                      <View style={{ marginTop: 12, width: "100%" }}>
+                        <ThemedText
+                          style={{
+                            fontSize: 11,
+                            fontWeight: "bold",
+                            marginBottom: 4,
+                            opacity: 0.7,
+                          }}
+                        >
+                          Cámaras Inactivas:
+                        </ThemedText>
+                        {level_2_performance.system_health.device_list
+                          .filter((d) => d.status === "inactive")
+                          .map((device) => (
+                            <View
+                              key={device.device_id}
+                              style={{
+                                flexDirection: "row",
+                                justifyContent: "space-between",
+                                marginBottom: 2,
+                              }}
+                            >
+                              <ThemedText
+                                style={{ fontSize: 11, color: "#F44336" }}
+                              >
+                                • {device.device_id}
+                              </ThemedText>
+                            </View>
+                          ))}
+                      </View>
+                    )}
+                  </KPICard>
+                </View>
 
-          {/* Recent Alerts Log */}
-          <View style={styles.chartSection}>
-            <ThemedText style={styles.chartTitle}>
-              REGISTRO DE ALERTAS RECIENTES (ÚLTIMAS 20)
-            </ThemedText>
-            {recentAlerts.length === 0 ? (
-              <ThemedText
-                style={{ opacity: 0.5, textAlign: "center", padding: 20 }}
-              >
-                No hay alertas recientes
-              </ThemedText>
-            ) : (
-              recentAlerts.map((alert, idx) => (
+                {/* Detection Confidence */}
                 <View
-                  key={idx}
-                  style={{
-                    flexDirection: "row",
-                    justifyContent: "space-between",
-                    paddingVertical: 10,
-                    borderBottomWidth: 1,
-                    borderBottomColor: "#333",
-                  }}
+                  style={[styles.gridItem, { width: `${100 / gridColumns}%` }]}
                 >
-                  <View>
-                    <ThemedText style={{ fontWeight: "bold", fontSize: 14 }}>
-                      {alert.type || "ALERTA"}
-                    </ThemedText>
-                    <ThemedText style={{ fontSize: 12, opacity: 0.7 }}>
-                      {alert.message ||
-                        `Space: ${alert.space_id || alert.device_id}`}
-                    </ThemedText>
-                  </View>
-                  <View style={{ alignItems: "flex-end" }}>
-                    <ThemedText style={{ fontSize: 12, opacity: 0.5 }}>
-                      {new Date(alert.timestamp).toLocaleTimeString()}
-                    </ThemedText>
+                  <KPICard
+                    title="CONFIANZA IA (YOLO)"
+                    value={
+                      isProcessorOffline
+                        ? "N/A"
+                        : level_2_performance.detection_confidence.sample_size >
+                            0
+                          ? `${level_2_performance.detection_confidence.average_confidence.toFixed(1)}%`
+                          : "N/A"
+                    }
+                    subtitle="Calidad (Solo Ocupados)"
+                    status={
+                      isProcessorOffline
+                        ? "info"
+                        : getConfidenceStatus(
+                            level_2_performance.detection_confidence
+                              .quality_status
+                          )
+                    }
+                  >
                     <ThemedText
+                      style={[
+                        styles.value,
+                        {
+                          color: isProcessorOffline
+                            ? "#666"
+                            : level_2_performance.detection_confidence
+                                  .quality_status === "EXCELLENT" ||
+                                level_2_performance.detection_confidence
+                                  .quality_status === "GOOD"
+                              ? "#4CAF50"
+                              : level_2_performance.detection_confidence
+                                    .quality_status === "ACCEPTABLE"
+                                ? "#FF9800"
+                                : "#666",
+                        },
+                      ]}
+                    >
+                      {isProcessorOffline
+                        ? "N/A"
+                        : level_2_performance.detection_confidence.sample_size >
+                            0
+                          ? `${level_2_performance.detection_confidence.average_confidence.toFixed(1)}%`
+                          : "N/A"}
+                    </ThemedText>
+                    <ThemedText style={styles.subtitle}>
+                      {isProcessorOffline
+                        ? "Sin datos recientes"
+                        : `Muestras (Ocupados): ${level_2_performance.detection_confidence.sample_size}`}
+                    </ThemedText>
+                    <ThemedText style={styles.statusLabel}>
+                      {isProcessorOffline
+                        ? "OFFLINE"
+                        : level_2_performance.detection_confidence
+                            .quality_status}
+                    </ThemedText>
+                  </KPICard>
+                </View>
+
+                {/* Occupancy Rate */}
+                <View
+                  style={[styles.gridItem, { width: `${100 / gridColumns}%` }]}
+                >
+                  <KPICard title="OCUPACIÓN ACTUAL">
+                    {isProcessorOffline ? (
+                      <View
+                        style={{
+                          alignItems: "center",
+                          justifyContent: "center",
+                          height: 140,
+                        }}
+                      >
+                        <ThemedText
+                          style={{
+                            fontSize: 24,
+                            fontWeight: "bold",
+                            color: "#666",
+                          }}
+                        >
+                          OFFLINE
+                        </ThemedText>
+                      </View>
+                    ) : (
+                      <OccupancyGauge
+                        percentage={
+                          level_1_operational.occupancy_rate.occupancy_rate
+                        }
+                        status={level_1_operational.occupancy_rate.status}
+                      />
+                    )}
+                    <ThemedText style={styles.gaugeSubtitle}>
+                      {isProcessorOffline
+                        ? "Datos no disponibles"
+                        : `${level_1_operational.occupancy_rate.occupied_spaces} / ${level_1_operational.occupancy_rate.total_spaces} espacios`}
+                    </ThemedText>
+                  </KPICard>
+                </View>
+
+                {/* Message Latency */}
+                <View
+                  style={[styles.gridItem, { width: `${100 / gridColumns}%` }]}
+                >
+                  <KPICard
+                    title="LATENCIA MENSAJES"
+                    value={
+                      isProcessorOffline
+                        ? "N/A"
+                        : level_2_performance.message_latency?.status !==
+                            "NO_DATA"
+                          ? `${level_2_performance.message_latency?.average_latency_seconds.toFixed(3)}s`
+                          : "N/A"
+                    }
+                    subtitle="Procesamiento E2E"
+                    status={
+                      isProcessorOffline
+                        ? "info"
+                        : getLatencyStatus(
+                            level_2_performance.message_latency?.status ||
+                              "NO_DATA"
+                          )
+                    }
+                  >
+                    <ThemedText style={styles.value}>
+                      {isProcessorOffline
+                        ? "N/A"
+                        : level_2_performance.message_latency?.status !==
+                            "NO_DATA"
+                          ? `${level_2_performance.message_latency?.average_latency_seconds.toFixed(3)}s`
+                          : "N/A"}
+                    </ThemedText>
+                    <ThemedText style={styles.subtitle}>
+                      {isProcessorOffline
+                        ? ""
+                        : `Max: ${level_2_performance.message_latency?.max_latency_seconds?.toFixed(3) || 0}s`}
+                    </ThemedText>
+                    <ThemedText style={styles.statusLabel}>
+                      {isProcessorOffline
+                        ? "OFFLINE"
+                        : level_2_performance.message_latency?.status ||
+                          "NO_DATA"}
+                    </ThemedText>
+                  </KPICard>
+                </View>
+
+                {/* Parking Duration */}
+                <View
+                  style={[styles.gridItem, { width: `${100 / gridColumns}%` }]}
+                >
+                  <KPICard
+                    title="DURACIÓN PROMEDIO"
+                    value={
+                      isProcessorOffline
+                        ? "N/A"
+                        : formatDuration(
+                            level_3_analytics.parking_duration
+                              .average_duration_hours
+                          )
+                    }
+                    subtitle="Por Sesión"
+                    status={isProcessorOffline ? "info" : "info"}
+                  >
+                    <ThemedText style={styles.value}>
+                      {isProcessorOffline
+                        ? "N/A"
+                        : formatDuration(
+                            level_3_analytics.parking_duration
+                              .average_duration_hours
+                          )}
+                    </ThemedText>
+                    <ThemedText style={styles.subtitle}>
+                      {isProcessorOffline
+                        ? "Sin datos recientes"
+                        : `Tipo: ${level_3_analytics.parking_duration.usage_type}`}
+                    </ThemedText>
+                    <ThemedText style={styles.statusLabel}>
+                      {isProcessorOffline
+                        ? "OFFLINE"
+                        : `${level_3_analytics.parking_duration.sample_size} sesiones`}
+                    </ThemedText>
+                  </KPICard>
+                </View>
+
+                {/* Low Confidence Rate */}
+                <View
+                  style={[styles.gridItem, { width: `${100 / gridColumns}%` }]}
+                >
+                  <KPICard
+                    title="TASA BAJA CONFIANZA"
+                    value={
+                      isProcessorOffline
+                        ? "N/A"
+                        : `${level_2_performance.low_confidence_rate.low_confidence_rate.toFixed(1)}%`
+                    }
+                    subtitle={
+                      isProcessorOffline
+                        ? "Sistema detenido"
+                        : `${level_2_performance.low_confidence_rate.low_confidence_count} eventos`
+                    }
+                    status={
+                      isProcessorOffline
+                        ? "info"
+                        : getLowConfidenceStatus(
+                            level_2_performance.low_confidence_rate.status
+                          )
+                    }
+                  >
+                    <ThemedText style={styles.value}>
+                      {isProcessorOffline
+                        ? "N/A"
+                        : `${level_2_performance.low_confidence_rate.low_confidence_rate.toFixed(1)}%`}
+                    </ThemedText>
+                    <ThemedText style={styles.subtitle}>
+                      {isProcessorOffline
+                        ? "Sin datos recientes"
+                        : `${level_2_performance.low_confidence_rate.low_confidence_count} / ${level_2_performance.low_confidence_rate.total_events} eventos`}
+                    </ThemedText>
+                    <ThemedText style={styles.statusLabel}>
+                      {isProcessorOffline
+                        ? "OFFLINE"
+                        : level_2_performance.low_confidence_rate.status}
+                    </ThemedText>
+                  </KPICard>
+                </View>
+              </View>
+
+              {/* Recent Alerts Log */}
+              <View style={styles.chartSection}>
+                <ThemedText style={styles.chartTitle}>
+                  REGISTRO DE ALERTAS RECIENTES (ÚLTIMAS 20)
+                </ThemedText>
+                {recentAlerts.length === 0 ? (
+                  <ThemedText
+                    style={{ opacity: 0.5, textAlign: "center", padding: 20 }}
+                  >
+                    No hay alertas recientes
+                  </ThemedText>
+                ) : (
+                  recentAlerts.map((alert, idx) => (
+                    <View
+                      key={idx}
                       style={{
-                        fontSize: 10,
-                        fontWeight: "bold",
-                        color:
-                          alert.severity === "CRITICAL"
-                            ? "#F44336"
-                            : alert.severity === "WARNING"
-                              ? "#FF9800"
-                              : "#4CAF50",
+                        flexDirection: "row",
+                        justifyContent: "space-between",
+                        paddingVertical: 10,
+                        borderBottomWidth: 1,
+                        borderBottomColor: "#333",
                       }}
                     >
-                      {alert.severity || "INFO"}
-                    </ThemedText>
-                  </View>
-                </View>
-              ))
-            )}
-          </View>
+                      <View>
+                        <ThemedText
+                          style={{ fontWeight: "bold", fontSize: 14 }}
+                        >
+                          {alert.type || "ALERTA"}
+                        </ThemedText>
+                        <ThemedText style={{ fontSize: 12, opacity: 0.7 }}>
+                          {alert.message ||
+                            `Space: ${alert.space_id || alert.device_id}`}
+                        </ThemedText>
+                      </View>
+                      <View style={{ alignItems: "flex-end" }}>
+                        <ThemedText style={{ fontSize: 12, opacity: 0.5 }}>
+                          {new Date(alert.timestamp).toLocaleTimeString()}
+                        </ThemedText>
+                        <ThemedText
+                          style={{
+                            fontSize: 10,
+                            fontWeight: "bold",
+                            color:
+                              alert.severity === "CRITICAL"
+                                ? "#F44336"
+                                : alert.severity === "WARNING"
+                                  ? "#FF9800"
+                                  : "#4CAF50",
+                          }}
+                        >
+                          {alert.severity || "INFO"}
+                        </ThemedText>
+                      </View>
+                    </View>
+                  ))
+                )}
+              </View>
 
-          {/* Occupancy Trend Chart */}
-          <View style={styles.chartSection}>
-            <ThemedText style={styles.chartTitle}>
-              TENDENCIA DE OCUPACIÓN (ÚLTIMAS 24H)
-            </ThemedText>
-            <OccupancyTrendChart
-              data={level_3_analytics.occupancy_trend.trend_data}
-            />
-          </View>
+              {/* Occupancy Trend Chart */}
+              <View style={styles.chartSection}>
+                <ThemedText style={styles.chartTitle}>
+                  TENDENCIA DE OCUPACIÓN (ÚLTIMAS 24H)
+                </ThemedText>
+                <OccupancyTrendChart
+                  data={level_3_analytics.occupancy_trend.trend_data}
+                />
+              </View>
 
-          {/* Peak Hours Chart */}
-          <View style={styles.chartSection}>
-            <ThemedText style={styles.chartTitle}>
-              ANÁLISIS DE HORAS PICO (PROMEDIO HISTÓRICO)
-            </ThemedText>
-            <PeakHoursChart
-              hourlyBreakdown={level_3_analytics.peak_hours.hourly_breakdown}
-            />
-            <ThemedText style={styles.chartSubtitle}>
-              Datos de los últimos {level_3_analytics.peak_hours.days_analyzed}{" "}
-              días
-            </ThemedText>
-          </View>
+              {/* Peak Hours Chart */}
+              <View style={styles.chartSection}>
+                <ThemedText style={styles.chartTitle}>
+                  ANÁLISIS DE HORAS PICO (PROMEDIO HISTÓRICO)
+                </ThemedText>
+                <PeakHoursChart
+                  hourlyBreakdown={
+                    level_3_analytics.peak_hours.hourly_breakdown
+                  }
+                />
+                <ThemedText style={styles.chartSubtitle}>
+                  Datos de los últimos{" "}
+                  {level_3_analytics.peak_hours.days_analyzed} días
+                </ThemedText>
+              </View>
 
-          {/* Footer Info */}
-          <View style={styles.footer}>
-            <ThemedText style={styles.footerText}>
-              Última actualización:{" "}
-              {formatTimestamp(kpiData.metadata.generated_at)}
-            </ThemedText>
-            <ThemedText style={styles.footerText}>
-              Versión: {kpiData.metadata.version}
-            </ThemedText>
-          </View>
+              {/* Footer Info */}
+              <View style={styles.footer}>
+                <ThemedText style={styles.footerText}>
+                  Última actualización:{" "}
+                  {formatTimestamp(kpiData.metadata.generated_at)}
+                </ThemedText>
+                <ThemedText style={styles.footerText}>
+                  Versión: {kpiData.metadata.version}
+                </ThemedText>
+              </View>
+            </>
+          )}
         </View>
       </ScrollView>
     </ThemedView>
