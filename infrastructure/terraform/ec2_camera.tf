@@ -65,7 +65,7 @@ data "aws_ami" "amazon_linux_2023" {
 
 resource "aws_instance" "camera_hub" {
   count         = var.camera_sim_count > 0 ? 1 : 0
-  ami           = data.aws_ami.amazon_linux_2023.id
+  ami           = "ami-0f00d706c4a80fd93"
   instance_type = "t2.micro"
 
   iam_instance_profile = aws_iam_instance_profile.camera_hub_profile.name
