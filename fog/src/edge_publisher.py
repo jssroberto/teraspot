@@ -99,6 +99,11 @@ def main():
         help="Image path for YOLO inference (default: fog/assets/bus.jpg)",
     )
     parser.add_argument(
+        "--static-mock",
+        action="store_true",
+        help="Generate mock data once and keep it static (for non-YOLO scalability)",
+    )
+    parser.add_argument(
         "--video",
         default=None,
         help="Video path for YOLO inference (takes precedence over --image)",
@@ -339,8 +344,10 @@ def main():
         subscribe_future.result()
 
         
+        
         iteration = 0
         last_publish_time = 0
+        cached_static_snapshot = None
         HEARTBEAT_INTERVAL = 60  # Send heartbeat every 60s
 
         while args.iterations < 0 or iteration < args.iterations:
@@ -362,7 +369,14 @@ def main():
                     conf_threshold=args.conf_threshold,
                 )
             else:
-                snapshot = generate_mocked_spaces(args.spaces, prefix=args.prefix)
+                if args.static_mock:
+                    if cached_static_snapshot is None:
+                        logger.info("Generating STATIC mock data (will be reused)...")
+                        cached_static_snapshot = generate_mocked_spaces(args.spaces, prefix=args.prefix)
+                    snapshot = cached_static_snapshot
+                    data_source = "mocked-static"
+                else:
+                    snapshot = generate_mocked_spaces(args.spaces, prefix=args.prefix)
 
             spaces = snapshot["spaces"]
             data_metadata = {

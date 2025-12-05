@@ -72,7 +72,7 @@ resource "aws_instance" "camera_hub" {
   security_groups      = [aws_security_group.camera_hub_sg.name]
 
   tags = {
-    Name        = "TeraSpot-Camera-Hub"
+    Name        = "TeraSpot-Dev-Cluster"
     Environment = var.environment
   }
 
@@ -106,20 +106,43 @@ resource "aws_instance" "camera_hub" {
         
         echo "Starting $CAMERA_ID with prefix $PREFIX..."
         
-        docker run -d \
-            --name $CAMERA_ID \
-            --restart unless-stopped \
-            -e AWS_IOT_ENDPOINT="${data.aws_iot_endpoint.current.endpoint_address}" \
-            -e AWS_IOT_THING_NAME="$CAMERA_ID" \
-            -e AWS_IOT_FACILITY_ID="facility-1" \
-            -e AWS_IOT_ZONE_ID="zone-1" \
-            -e AWS_IOT_CERT_PATH="/app/certs" \
-            ${aws_ecr_repository.fog_repo.repository_url}:latest \
-            python src/edge_publisher.py \
-            --video "assets/parking_lot.mp4" \
-            --spaces 10 \
-            --interval 10 \
-            --prefix "$PREFIX"
+        if [ "$i" -eq 3 ]; then
+            echo "Starting $CAMERA_ID with YOLO enabled..."
+            docker run -d \
+                --name $CAMERA_ID \
+                --restart unless-stopped \
+                -e AWS_IOT_ENDPOINT="${data.aws_iot_endpoint.current.endpoint_address}" \
+                -e AWS_IOT_THING_NAME="$CAMERA_ID" \
+                -e AWS_IOT_FACILITY_ID="facility-1" \
+                -e AWS_IOT_ZONE_ID="zone-1" \
+                -e AWS_IOT_CERT_PATH="/app/certs" \
+                ${aws_ecr_repository.fog_repo.repository_url}:latest \
+                python src/edge_publisher.py \
+                --use-yolo \
+                --video "assets/parking_lot.mp4" \
+                --roi-s3-bucket "${var.bucket_name}" \
+                --roi-s3-key "configs/roi-$CAMERA_ID.json" \
+                --spaces 10 \
+                --interval 10 \
+                --prefix "$PREFIX"
+        else
+            echo "Starting $CAMERA_ID in MOCK mode..."
+            docker run -d \
+                --name $CAMERA_ID \
+                --restart unless-stopped \
+                -e AWS_IOT_ENDPOINT="${data.aws_iot_endpoint.current.endpoint_address}" \
+                -e AWS_IOT_THING_NAME="$CAMERA_ID" \
+                -e AWS_IOT_FACILITY_ID="facility-1" \
+                -e AWS_IOT_ZONE_ID="zone-1" \
+                -e AWS_IOT_CERT_PATH="/app/certs" \
+                ${aws_ecr_repository.fog_repo.repository_url}:latest \
+                python src/edge_publisher.py \
+                --static-mock \
+                --video "assets/parking_lot.mp4" \
+                --spaces 10 \
+                --interval 10 \
+                --prefix "$PREFIX"
+        fi
     done
   EOF
 }

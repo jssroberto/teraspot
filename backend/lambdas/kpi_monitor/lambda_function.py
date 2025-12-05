@@ -653,6 +653,7 @@ def get_peak_occupancy_hours(days_back=30, items=None):
         
         return {
             'peak_hours': [{'hour': h, 'occupancy_percentage': p} for h, p in peak_hours],
+            'hourly_breakdown': {str(h): p for h, p in hourly_percentages.items()},
             'days_analyzed': days_back,
             'timestamp': datetime.now(timezone.utc).isoformat()
         }
