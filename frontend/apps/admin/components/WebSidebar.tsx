@@ -44,8 +44,8 @@ export function WebSidebar() {
     const menuItems = [
         { name: "Dashboard", path: "/dashboard" },
         { name: "Cameras", path: "/cameras" },
-        { name: "Analytics", path: "/analytics" }, // Placeholder
-        { name: "Settings", path: "/settings" },   // Placeholder
+        { name: "Alerts", path: "/alerts" },
+        { name: "Analytics", path: "/analytics" },
     ];
 
     return (
@@ -95,7 +95,7 @@ export function WebSidebar() {
                         <Link key={item.path} href={item.path as any} asChild>
                             <TouchableOpacity style={StyleSheet.flatten([styles.menuItem, isActive && styles.menuItemActive, styles.link])}>
                                 <Text style={[styles.menuIcon, isActive && styles.menuIconActive]}>
-                                    {item.name === "Dashboard" ? "📊" : item.name === "Cameras" ? "📹" : item.name === "Analytics" ? "📈" : "⚙️"}
+                                    {item.name === "Dashboard" ? "📊" : item.name === "Cameras" ? "📹" : item.name === "Analytics" ? "📈" : "🔔"}
                                 </Text>
                                 <Text style={[styles.menuText, isActive && styles.menuTextActive]}>
                                     {item.name}

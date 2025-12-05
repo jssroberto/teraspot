@@ -9,11 +9,14 @@ logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 sqs = boto3.client('sqs', region_name='us-east-1')
+sns = boto3.client('sns', region_name='us-east-1')
 dynamodb = boto3.resource('dynamodb', region_name='us-east-1')
+s3 = boto3.client('s3', region_name='us-east-1')
 
 SQS_ALERTS_URL = os.getenv('SQS_ALERTS_URL')
 SQS_LOW_CONFIDENCE_URL = os.getenv('SQS_LOW_CONFIDENCE_URL')
 DLQ_URL = os.getenv('DLQ_URL')
+SNS_TOPIC_ARN = os.getenv('SNS_TOPIC_ARN')
 HISTORY_TABLE_NAME = os.getenv('HISTORY_TABLE', 'parking-history')
 CURRENT_TABLE_NAME = os.getenv('DYNAMODB_TABLE', 'parking-spaces-dev')
 
@@ -22,6 +25,12 @@ current_table = dynamodb.Table(CURRENT_TABLE_NAME)
 
 CONNECTIONS_TABLE = os.getenv('CONNECTIONS_TABLE')
 WEBSOCKET_CALLBACK_URL = os.getenv('WEBSOCKET_CALLBACK_URL')
+CONFIG_BUCKET_NAME = os.getenv('CONFIG_BUCKET_NAME', 'teraspot-config-dev')
+
+# Global Cache
+cached_config = None
+last_config_load = 0
+CONFIG_TTL = 60  # Seconds
 
 if WEBSOCKET_CALLBACK_URL:
     apigw_management = boto3.client(
@@ -53,6 +62,105 @@ def send_to_sqs(queue_url, message):
         logger.error(f"Failed to send to SQS: {str(e)}")
         save_to_dlq(message, str(e))
         return False
+
+
+
+        return False
+
+
+
+def save_alert_to_history(alert):
+    """Saves alert to history table with space_id='ALERTS' for easy querying"""
+    try:
+        # Use a special PK 'ALERTS' to aggregate all alerts
+        item = {
+            'space_id': 'ALERTS',
+            'timestamp': alert['timestamp'],
+            'status': f"ALERT:{alert['type']}",
+            'device_id': alert.get('device_id', alert.get('space_id', 'system')),
+            'confidence': Decimal(str(alert.get('confidence', 1.0))),
+            'details': json.dumps(alert),
+            'archived_at': datetime.now(timezone.utc).isoformat()
+        }
+        history_table.put_item(Item=item)
+        logger.info(f"Alert persisted: {alert['type']}")
+    except Exception as e:
+        logger.error(f"Failed to persist alert: {e}")
+
+
+def get_alert_config():
+    """Fetches alert config from S3 with caching"""
+    global cached_config, last_config_load
+    
+    now = datetime.now().timestamp()
+    if cached_config and (now - last_config_load < CONFIG_TTL):
+        return cached_config
+
+    # Default Config
+    config = {
+        'occupancy_threshold_warning': 80,
+        'occupancy_threshold_critical': 95,
+        'confidence_threshold': 0.8,
+        'inactive_timeout_minutes': 5,
+        'channels': {'email': True, 'app': True}
+    }
+    
+    if not CONFIG_BUCKET_NAME:
+        logger.warning("CONFIG_BUCKET_NAME not set, using defaults")
+        return config
+
+    try:
+        key = "configs/alert-global.json"
+        response = s3.get_object(Bucket=CONFIG_BUCKET_NAME, Key=key)
+        content = response['Body'].read().decode('utf-8')
+        data = json.loads(content)
+        
+        # Merge values
+        if 'value' in data:
+            val = data['value']
+            config.update({k: v for k, v in val.items() if v is not None})
+            
+        cached_config = config
+        last_config_load = now
+        logger.info("Loaded alert config from S3")
+    except s3.exceptions.NoSuchKey:
+        logger.info("No alert config found in S3, using defaults")
+    except Exception as e:
+        logger.error(f"Error loading config from S3: {e}")
+        
+    return config
+
+
+def publish_sns(subject, message_dict):
+    """Publica mensaje a SNS para Email/SMS"""
+    config = get_alert_config()
+    if not config['channels'].get('email', True):
+        # Email disabled
+        return
+
+    if not SNS_TOPIC_ARN:
+        return
+    
+    try:
+        # Format message cleanly for email
+        email_body = f"""
+ALERTA TERASPOT
+===============
+Type: {message_dict.get('type')}
+Severity: {message_dict.get('severity')}
+Time: {message_dict.get('timestamp')}
+
+Details:
+{json.dumps(message_dict, indent=2)}
+"""
+        sns.publish(
+            TopicArn=SNS_TOPIC_ARN,
+            Subject=subject,
+            Message=email_body
+        )
+        logger.info(f"Published to SNS: {subject}")
+    except Exception as e:
+        logger.error(f"Failed to publish to SNS: {e}")
 
 
 def save_to_dlq(message, error_reason):
@@ -135,7 +243,9 @@ def check_inactive_sensors():
         )
         
         now = datetime.now(timezone.utc)
-        threshold = timedelta(minutes=5)
+        config = get_alert_config()
+        inactive_min = config.get('inactive_timeout_minutes', 5)
+        threshold = timedelta(minutes=inactive_min)
         inactive_devices = set()
         
         for item in response.get('Items', []):
@@ -187,11 +297,13 @@ def check_inactive_sensors():
                 'type': 'INACTIVE_SENSOR',
                 'device_id': device,
                 'severity': 'WARNING',
-                'message': f"Device {device} has not reported in > 5 minutes",
+                'message': f"Device {device} has not reported in > {inactive_min} minutes",
                 'timestamp': now.isoformat()
             }
             send_to_sqs(SQS_ALERTS_URL, alert)
+            publish_sns(f"⚠️ Device Offline: {device}", alert)
             notify_clients(alert) # Broadcast to WebSocket
+            save_alert_to_history(alert) 
             logger.info(f" Sent INACTIVE_SENSOR alert for {device}")
             
         return len(inactive_devices)
@@ -253,8 +365,10 @@ def process_stream_records(records):
             space_id = new_image.get('space_id', {}).get('S', 'UNKNOWN')
             confidence = float(new_image.get('confidence', {}).get('N', 1.0))
             
+            config = get_alert_config()
+            conf_threshold = config.get('confidence_threshold', 0.8)
             
-            if confidence < 0.8:
+            if confidence < conf_threshold:
                 alert = {
                     'type': 'LOW_CONFIDENCE',
                     'space_id': space_id,
@@ -263,7 +377,8 @@ def process_stream_records(records):
                     'timestamp': datetime.now(timezone.utc).isoformat()
                 }
                 send_to_sqs(SQS_LOW_CONFIDENCE_URL, alert)
-                send_to_sqs(SQS_LOW_CONFIDENCE_URL, alert)
+                publish_sns(f"⚠️ Low Confidence: {space_id}", alert)
+                save_alert_to_history(alert)
                 logger.info(f" LOW_CONFIDENCE alert: {space_id}")
 
             # Notify WebSocket Clients
@@ -285,7 +400,11 @@ def process_stream_records(records):
         occupancy_pct = (occupied / total) * 100
         logger.info(f"Current Occupancy: {occupied}/{total} ({occupancy_pct:.1f}%)")
         
-        if occupancy_pct >= 95:
+        config = get_alert_config()
+        crit_thresh = config.get('occupancy_threshold_critical', 95)
+        warn_thresh = config.get('occupancy_threshold_warning', 80)
+
+        if occupancy_pct >= crit_thresh:
             alert = {
                 'type': 'HIGH_OCCUPANCY',
                 'occupancy_percent': occupancy_pct,
@@ -295,9 +414,11 @@ def process_stream_records(records):
                 'timestamp': datetime.now(timezone.utc).isoformat()
             }
             send_to_sqs(SQS_ALERTS_URL, alert)
+            publish_sns(f"🚨 CRITICAL OCCUPANCY: {occupancy_pct:.1f}%", alert)
             notify_clients(alert) # Broadcast to WebSocket
+            save_alert_to_history(alert)
             logger.info(f"HIGH_OCCUPANCY (CRITICAL) alert sent")
-        elif occupancy_pct >= 80:
+        elif occupancy_pct >= warn_thresh:
             alert = {
                 'type': 'HIGH_OCCUPANCY',
                 'occupancy_percent': occupancy_pct,
@@ -307,7 +428,9 @@ def process_stream_records(records):
                 'timestamp': datetime.now(timezone.utc).isoformat()
             }
             send_to_sqs(SQS_ALERTS_URL, alert)
+            publish_sns(f"⚠️ High Occupancy: {occupancy_pct:.1f}%", alert)
             notify_clients(alert) # Broadcast to WebSocket
+            save_alert_to_history(alert)
             logger.info(f"HIGH_OCCUPANCY (WARNING) alert sent")
 
 

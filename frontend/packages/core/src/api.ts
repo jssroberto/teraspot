@@ -140,6 +140,36 @@ export const saveRoiConfig = async (deviceId: string, spaces: RoiSpace[]) => {
   }
 };
 
+export const getAlertConfig = async (): Promise<any> => {
+  try {
+    const response = await api.post("/config", {
+      action: "GET",
+      config_id: "alert-global",
+    });
+    return response.data.config?.value || {};
+  } catch (error) {
+    console.error("Error fetching alert config:", error);
+    return {};
+  }
+};
+
+export const saveAlertConfig = async (config: any) => {
+  try {
+    const response = await api.post("/config", {
+      action: "SAVE",
+      config: {
+        config_type: "alert_rule",
+        rule_id: "global",
+        value: config,
+      },
+    });
+    return response.data;
+  } catch (error) {
+    console.error("Error saving alert config:", error);
+    throw error;
+  }
+};
+
 export const getParkingStatus = async (): Promise<ParkingStatus[]> => {
   try {
     const response = await api.get("/status");
@@ -319,5 +349,66 @@ export const getKPIData = async (
   } catch (error) {
     console.error("Error fetching KPI data:", error);
     throw error;
+  }
+};
+
+export const getPrediction = async (
+  hoursBack: number = 168,
+  horizon: number = 24
+) => {
+  try {
+    const response = await api.post("/kpi", {
+      kpi: "prediction",
+      params: { hours_back: hoursBack, prediction_horizon_hours: horizon },
+    });
+    // Backend returns: {kpi: "prediction", data: {...}, metadata: {...}}
+    return response.data.data || response.data;
+  } catch (error) {
+    console.error("Error fetching predictions:", error);
+    return {};
+  }
+};
+
+export const getPeakHours = async (daysBack: number = 30) => {
+  try {
+    const response = await api.post("/kpi", {
+      kpi: "peak_hours",
+      params: { days_back: daysBack },
+    });
+    // Backend returns: {kpi: "peak_hours", data: {...}, metadata: {...}}
+    return response.data.data || response.data;
+  } catch (error) {
+    console.error("Error fetching peak hours:", error);
+    return {};
+  }
+};
+
+export const getOccupancyTrend = async (
+  hoursBack: number = 24,
+  interval: number = 60
+) => {
+  try {
+    const response = await api.post("/kpi", {
+      kpi: "occupancy_trend",
+      params: { hours_back: hoursBack, interval_minutes: interval },
+    });
+    // Backend returns: {kpi: "occupancy_trend", data: {...}, metadata: {...}}
+    return response.data.data || response.data;
+  } catch (error) {
+    console.error("Error fetching occupancy trend:", error);
+    return {};
+  }
+};
+
+export const getRecentAlerts = async (limit: number = 50) => {
+  try {
+    const response = await api.post("/kpi", {
+      kpi: "recent_alerts",
+      params: { limit: limit },
+    });
+    return response.data.alerts || [];
+  } catch (error) {
+    console.error("Error fetching recent alerts:", error);
+    return [];
   }
 };

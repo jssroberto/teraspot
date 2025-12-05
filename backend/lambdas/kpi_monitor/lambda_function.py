@@ -36,11 +36,20 @@ def get_current_occupancy_rate(items=None):
     """
     try:
         if items is None:
-            response = current_table.scan(
-                ProjectionExpression='space_id, #st, #ts',
-                ExpressionAttributeNames={'#st': 'status', '#ts': 'timestamp'}
-            )
-            items = response.get('Items', [])
+            items = []
+            scan_kwargs = {
+                'ProjectionExpression': 'space_id, #st, #ts',
+                'ExpressionAttributeNames': {'#st': 'status', '#ts': 'timestamp'}
+            }
+            done = False
+            start_key = None
+            while not done:
+                if start_key:
+                    scan_kwargs['ExclusiveStartKey'] = start_key
+                response = current_table.scan(**scan_kwargs)
+                items.extend(response.get('Items', []))
+                start_key = response.get('LastEvaluatedKey', None)
+                done = start_key is None
         
         total_spaces = len(items)
         
@@ -605,14 +614,20 @@ def get_peak_occupancy_hours(days_back=30, items=None):
         start_time = now - timedelta(days=days_back)
         
         if items is None:
-            response = history_table.scan(
-                ProjectionExpression='#ts, #st',
-                ExpressionAttributeNames={
-                    '#ts': 'timestamp',
-                    '#st': 'status'
-                }
-            )
-            items = response.get('Items', [])
+            items = []
+            scan_kwargs = {
+                'ProjectionExpression': '#ts, #st',
+                'ExpressionAttributeNames': {'#ts': 'timestamp', '#st': 'status'}
+            }
+            done = False
+            start_key = None
+            while not done:
+                if start_key:
+                    scan_kwargs['ExclusiveStartKey'] = start_key
+                response = history_table.scan(**scan_kwargs)
+                items.extend(response.get('Items', []))
+                start_key = response.get('LastEvaluatedKey', None)
+                done = start_key is None
         
         # Hourly occupancy counter (0-23)
         hourly_occupancy = defaultdict(lambda: {'occupied': 0, 'total': 0})
@@ -675,11 +690,25 @@ def get_occupancy_trend(hours_back=24, interval_minutes=60, items=None):
         start_time = now - timedelta(hours=hours_back)
         
         if items is None:
-            response = history_table.scan(
-                ProjectionExpression='space_id, #ts, #st',
-                ExpressionAttributeNames={'#ts': 'timestamp', '#st': 'status'}
-            )
-            items = response.get('Items', [])
+            items = []
+            scan_kwargs = {
+                'ProjectionExpression': 'space_id, #ts, #st',
+                'ExpressionAttributeNames': {'#ts': 'timestamp', '#st': 'status'}
+            }
+            # Optional: Add FilterExpression for time range to optimize
+            # But DynamoDB scan filtering happens AFTER read, so cost is same.
+            # However, it saves data transfer. 
+            # scan_kwargs['FilterExpression'] = ... (complexity with timestamps string comparison)
+            
+            done = False
+            start_key = None
+            while not done:
+                if start_key:
+                    scan_kwargs['ExclusiveStartKey'] = start_key
+                response = history_table.scan(**scan_kwargs)
+                items.extend(response.get('Items', []))
+                start_key = response.get('LastEvaluatedKey', None)
+                done = start_key is None
         
         # Create time intervals
         time_slots = []
@@ -737,6 +766,116 @@ def get_occupancy_trend(hours_back=24, interval_minutes=60, items=None):
         return {'error': str(e)}
 
 
+def predict_future_occupancy(hours_back=168, prediction_horizon_hours=24):
+    """
+    KPI 11: Future Occupancy Prediction (Linear Regression)
+    Uses historical data (default 7 days) to predict trend.
+    Returns: Slope, Intercept, and Predicted points.
+    """
+    try:
+        # Get historical data
+        trend_result = get_occupancy_trend(hours_back=hours_back, interval_minutes=60)
+        data_points = trend_result.get('trend_data', [])
+        
+        if not data_points or len(data_points) < 2:
+            return {'error': 'Insufficient data for prediction'}
+
+        # Prepare X (timestamps as float) and Y (occupancy)
+        # Normalize X to start at 0
+        x_values = []
+        y_values = []
+        
+        start_ts = datetime.fromisoformat(data_points[0]['timestamp']).timestamp()
+        
+        for pt in data_points:
+            ts = datetime.fromisoformat(pt['timestamp']).timestamp()
+            x_values.append((ts - start_ts) / 3600) # Hours since start
+            y_values.append(pt['occupancy_rate'])
+
+        # Calculate Linear Regression: y = mx + b
+        n = len(x_values)
+        sum_x = sum(x_values)
+        sum_y = sum(y_values)
+        sum_xy = sum(x * y for x, y in zip(x_values, y_values))
+        sum_xx = sum(x * x for x in x_values)
+        
+        slope_m = (n * sum_xy - sum_x * sum_y) / (n * sum_xx - sum_x ** 2)
+        intercept_b = (sum_y - slope_m * sum_x) / n
+        
+        # Generate Predictions
+        predictions = []
+        last_x = x_values[-1]
+        
+        for h in range(1, prediction_horizon_hours + 1):
+            pred_x = last_x + h
+            pred_y = slope_m * pred_x + intercept_b
+            pred_y = max(0, min(100, pred_y)) # Clamp 0-100
+            
+            future_ts = datetime.fromtimestamp(start_ts + pred_x * 3600, tz=timezone.utc)
+            
+            predictions.append({
+                'timestamp': future_ts.isoformat(),
+                'predicted_occupancy': round(pred_y, 2)
+            })
+            
+        return {
+            'slope': round(slope_m, 4),
+            'intercept': round(intercept_b, 4),
+            'predictions': predictions,
+            'trend_direction': 'INCREASING' if slope_m > 0.05 else 'DECREASING' if slope_m < -0.05 else 'STABLE',
+            'timestamp': datetime.now(timezone.utc).isoformat()
+        }
+
+    except Exception as e:
+        logger.error(f"Error predicting occupancy: {str(e)}")
+        return {'error': str(e)}
+
+
+def get_recent_alerts(limit=50):
+    """
+    KPI 12: Recent Alerts Log
+    Fetches latest alerts persisted in history table with space_id='ALERTS'
+    """
+    try:
+        from boto3.dynamodb.conditions import Key
+        
+        response = history_table.query(
+            KeyConditionExpression=Key('space_id').eq('ALERTS'),
+            ScanIndexForward=False, # Descending (newest first)
+            Limit=limit
+        )
+        
+        items = response.get('Items', [])
+        alerts = []
+        
+        for item in items:
+            try:
+                # Basic fields
+                alert = {
+                    'timestamp': item.get('timestamp'),
+                    'status': item.get('status'),
+                    'device_id': item.get('device_id'),
+                    'space_id': item.get('space_id'),
+                }
+                
+                # Try to parse full details
+                if 'details' in item:
+                    details = json.loads(item['details'])
+                    alert.update(details)
+                
+                alerts.append(alert)
+            except Exception:
+                continue
+                
+        logger.info(f"Fetched {len(alerts)} recent alerts")
+        return {'alerts': alerts}
+
+    except Exception as e:
+        logger.error(f"Error fetching recent alerts: {str(e)}")
+        # If query fails (e.g. strict schema), try Scan fallback? No, simpler is better.
+        return {'error': str(e), 'alerts': []}
+
+
 # ============================================================================
 # MAIN HANDLER 
 # ============================================================================
@@ -791,6 +930,13 @@ def lambda_handler(event, context):
             'occupancy_trend': lambda: get_occupancy_trend(
                 params.get('hours_back', 24),
                 params.get('interval_minutes', 60)
+            ),
+            'prediction': lambda: predict_future_occupancy(
+                params.get('hours_back', 168),
+                params.get('prediction_horizon_hours', 24)
+            ),
+            'recent_alerts': lambda: get_recent_alerts(
+                params.get('limit', 50)
             )
         }
         

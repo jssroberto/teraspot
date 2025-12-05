@@ -9,7 +9,7 @@ import time
 import boto3
 import sys
 
-def get_instance_id(ec2_client, tag_value="TeraSpot-Camera-Hub"):
+def get_instance_id(ec2_client, tag_value="TeraSpot-Dev-Cluster"):
     """Find the running Camera Hub instance."""
     response = ec2_client.describe_instances(
         Filters=[

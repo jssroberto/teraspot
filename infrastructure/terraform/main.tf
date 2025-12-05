@@ -841,6 +841,16 @@ resource "aws_iam_role_policy" "analytics_policy" {
         Effect = "Allow"
         Action = ["execute-api:ManageConnections"]
         Resource = "${aws_apigatewayv2_api.websocket_api.execution_arn}/*"
+      },
+      {
+        Effect = "Allow"
+        Action = ["s3:GetObject"]
+        Resource = "${aws_s3_bucket.config_bucket.arn}/*"
+      },
+      {
+        Effect = "Allow"
+        Action = ["sns:Publish"]
+        Resource = aws_sns_topic.alerts_topic.arn
       }
     ]
   })
@@ -864,6 +874,8 @@ resource "aws_lambda_function" "analytics_notifier" {
       DYNAMODB_TABLE         = var.dynamodb_table_name
       CONNECTIONS_TABLE      = aws_dynamodb_table.connections_table.name
       WEBSOCKET_CALLBACK_URL = replace(aws_apigatewayv2_stage.ws_stage.invoke_url, "wss://", "https://")
+      SNS_TOPIC_ARN          = aws_sns_topic.alerts_topic.arn
+      CONFIG_BUCKET_NAME     = aws_s3_bucket.config_bucket.id
     }
   }
 }
@@ -1154,3 +1166,5 @@ output "websocket_url" {
 output "websocket_callback_url" {
   value = replace(aws_apigatewayv2_stage.ws_stage.invoke_url, "wss://", "https://")
 }
+
+

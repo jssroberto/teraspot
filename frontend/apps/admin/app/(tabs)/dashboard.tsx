@@ -4,7 +4,7 @@ import { KPICard } from "@/components/kpi-card";
 import { OccupancyGauge } from "@/components/occupancy-gauge";
 import { OccupancyTrendChart } from "@/components/occupancy-trend-chart";
 import { PeakHoursChart } from "@/components/peak-hours-chart";
-import { getKPIData, KPIResponse } from "@repo/core";
+import { getKPIData, KPIResponse, getRecentAlerts } from "@repo/core";
 import React, { useEffect, useState } from "react";
 import {
     Alert,
@@ -20,6 +20,7 @@ import { signOut } from "aws-amplify/auth";
 
 export default function DashboardScreen() {
     const [kpiData, setKpiData] = useState<KPIResponse | null>(null);
+    const [recentAlerts, setRecentAlerts] = useState<any[]>([]);
     const [refreshing, setRefreshing] = useState(false);
     const [loading, setLoading] = useState(true);
     const { width: windowWidth } = useWindowDimensions();
@@ -40,8 +41,11 @@ export default function DashboardScreen() {
             const data = await getKPIData({
                 time_window_minutes: 1440, // 24 hours to capture data in low-traffic/dev environments
                 days_back: 7,
+                days_back: 7,
             });
+            const alerts = await getRecentAlerts(20);
             setKpiData(data);
+            setRecentAlerts(alerts);
         } catch (error) {
             console.error("Error fetching KPI data:", error);
             Alert.alert("Error", "No se pudieron cargar los datos del dashboard");
@@ -75,7 +79,12 @@ export default function DashboardScreen() {
                         if (message.type === "UPDATE") {
                             // Refresh data on update
                             fetchKPIData();
-                        } else if (message.type === "INACTIVE_SENSOR") {
+                        } else if (message.type === "INACTIVE_SENSOR" || message.type === "HIGH_OCCUPANCY" || message.type === "LOW_CONFIDENCE") {
+                            // Prepend to internal log
+                            setRecentAlerts(prev => [message, ...prev].slice(0, 20));
+                        }
+
+                        if (message.type === "INACTIVE_SENSOR") {
                             Alert.alert(
                                 "⚠️ Sensor Inactivo",
                                 message.message || `Dispositivo ${message.device_id} sin respuesta`,
@@ -483,6 +492,43 @@ export default function DashboardScreen() {
                                 </ThemedText>
                             </KPICard>
                         </View>
+                    </View>
+
+                    {/* Recent Alerts Log */}
+                    <View style={styles.chartSection}>
+                        <ThemedText style={styles.chartTitle}>
+                            REGISTRO DE ALERTAS RECIENTES (ÚLTIMAS 20)
+                        </ThemedText>
+                        {recentAlerts.length === 0 ? (
+                            <ThemedText style={{ opacity: 0.5, textAlign: 'center', padding: 20 }}>No hay alertas recientes</ThemedText>
+                        ) : (
+                            recentAlerts.map((alert, idx) => (
+                                <View key={idx} style={{
+                                    flexDirection: 'row',
+                                    justifyContent: 'space-between',
+                                    paddingVertical: 10,
+                                    borderBottomWidth: 1,
+                                    borderBottomColor: '#333'
+                                }}>
+                                    <View>
+                                        <ThemedText style={{ fontWeight: 'bold', fontSize: 14 }}>{alert.type || 'ALERTA'}</ThemedText>
+                                        <ThemedText style={{ fontSize: 12, opacity: 0.7 }}>{alert.message || `Space: ${alert.space_id || alert.device_id}`}</ThemedText>
+                                    </View>
+                                    <View style={{ alignItems: 'flex-end' }}>
+                                        <ThemedText style={{ fontSize: 12, opacity: 0.5 }}>
+                                            {new Date(alert.timestamp).toLocaleTimeString()}
+                                        </ThemedText>
+                                        <ThemedText style={{
+                                            fontSize: 10,
+                                            fontWeight: 'bold',
+                                            color: alert.severity === 'CRITICAL' ? '#F44336' : alert.severity === 'WARNING' ? '#FF9800' : '#4CAF50'
+                                        }}>
+                                            {alert.severity || 'INFO'}
+                                        </ThemedText>
+                                    </View>
+                                </View>
+                            ))
+                        )}
                     </View>
 
                     {/* Occupancy Trend Chart */}
