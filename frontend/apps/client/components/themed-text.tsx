@@ -1,11 +1,12 @@
 import { StyleSheet, Text, type TextProps } from 'react-native';
 
 import { useThemeColor } from '@/hooks/use-theme-color';
+import { scaleFontSize } from '@/constants/responsive';
 
 export type ThemedTextProps = TextProps & {
   lightColor?: string;
   darkColor?: string;
-  type?: 'default' | 'title' | 'defaultSemiBold' | 'subtitle' | 'link';
+  type?: 'default' | 'title' | 'defaultSemiBold' | 'subtitle' | 'link' | 'caption' | 'display';
 };
 
 export function ThemedText({
@@ -26,6 +27,8 @@ export function ThemedText({
         type === 'defaultSemiBold' ? styles.defaultSemiBold : undefined,
         type === 'subtitle' ? styles.subtitle : undefined,
         type === 'link' ? styles.link : undefined,
+        type === 'caption' ? styles.caption : undefined,
+        type === 'display' ? styles.display : undefined,
         style,
       ]}
       {...rest}
@@ -35,26 +38,45 @@ export function ThemedText({
 
 const styles = StyleSheet.create({
   default: {
-    fontSize: 16,
-    lineHeight: 24,
+    fontSize: scaleFontSize(16),
+    lineHeight: scaleFontSize(24),
+    letterSpacing: 0,
   },
   defaultSemiBold: {
-    fontSize: 16,
-    lineHeight: 24,
+    fontSize: scaleFontSize(16),
+    lineHeight: scaleFontSize(24),
     fontWeight: '600',
+    letterSpacing: 0,
   },
   title: {
-    fontSize: 32,
+    fontSize: scaleFontSize(28),
     fontWeight: 'bold',
-    lineHeight: 32,
+    lineHeight: scaleFontSize(34),
+    letterSpacing: -0.5,
   },
   subtitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
+    fontSize: scaleFontSize(20),
+    fontWeight: '600',
+    lineHeight: scaleFontSize(28),
+    letterSpacing: -0.2,
   },
   link: {
-    lineHeight: 30,
-    fontSize: 16,
-    color: '#0a7ea4',
+    fontSize: scaleFontSize(16),
+    lineHeight: scaleFontSize(24),
+    color: 'hsl(217, 91%, 60%)',
+    textDecorationLine: 'underline',
+  },
+  caption: {
+    fontSize: scaleFontSize(12),
+    lineHeight: scaleFontSize(16),
+    letterSpacing: 0.2,
+    opacity: 0.8,
+  },
+  display: {
+    fontSize: scaleFontSize(36),
+    fontWeight: 'bold',
+    lineHeight: scaleFontSize(42),
+    letterSpacing: -1,
   },
 });
+

@@ -19,7 +19,9 @@ export default function HomeScreen() {
 
   // Navigation State
   const [facilities, setFacilities] = useState<string[]>([]);
-  const [devicesByFacility, setDevicesByFacility] = useState<Record<string, string[]>>({});
+  const [devicesByFacility, setDevicesByFacility] = useState<
+    Record<string, string[]>
+  >({});
 
   const [selectedFacility, setSelectedFacility] = useState<string | null>(null);
   const [selectedDevice, setSelectedDevice] = useState<string | null>(null);
@@ -33,7 +35,7 @@ export default function HomeScreen() {
   const [viewMode, setViewMode] = useState<"map" | "grid">("map");
 
   const ASPECT_RATIO = 16 / 9;
-  const HEADER_HEIGHT = Platform.OS === 'ios' ? 50 : 20;
+  const HEADER_HEIGHT = Platform.OS === "ios" ? 50 : 20;
 
   // 1. Initial Data Load (Facilities & Devices)
   useEffect(() => {
@@ -70,7 +72,7 @@ export default function HomeScreen() {
         const sortedFacilities = Object.keys(facilityMap).sort();
         const groupedDevices: Record<string, string[]> = {};
 
-        sortedFacilities.forEach(f => {
+        sortedFacilities.forEach((f) => {
           groupedDevices[f] = Array.from(facilityMap[f]).sort();
         });
 
@@ -95,7 +97,6 @@ export default function HomeScreen() {
         } else {
           setErrorMsg("No active facilities found. Check backend connection.");
         }
-
       } catch (err: any) {
         console.error("Init failed:", err);
         setErrorMsg(err.message || "Failed to load system.");
@@ -105,7 +106,9 @@ export default function HomeScreen() {
     };
 
     init();
-    return () => { active = false; };
+    return () => {
+      active = false;
+    };
   }, [refreshKey]);
 
   // 2. Load ROI when Device Changes
@@ -131,7 +134,9 @@ export default function HomeScreen() {
 
   // 3. WebSocket
   useEffect(() => {
-    const wsUrl = process.env.EXPO_PUBLIC_WEBSOCKET_URL || "wss://vmdq0zxc18.execute-api.us-east-1.amazonaws.com/dev";
+    const wsUrl =
+      process.env.EXPO_PUBLIC_WEBSOCKET_URL ||
+      "wss://vmdq0zxc18.execute-api.us-east-1.amazonaws.com/dev";
     if (!wsUrl) return;
 
     let ws: WebSocket | null = null;
@@ -145,9 +150,11 @@ export default function HomeScreen() {
           const msg = JSON.parse(event.data);
           if (msg.type === "UPDATE" && msg.data) {
             const { space_id, status } = msg.data;
-            setStatuses(p => ({ ...p, [space_id]: status }));
+            setStatuses((p) => ({ ...p, [space_id]: status }));
           }
-        } catch (e) { /* ignore */ }
+        } catch (e) {
+          /* ignore */
+        }
       };
       ws.onclose = () => {
         console.log("WS Closed, reconnecting...");
@@ -156,7 +163,10 @@ export default function HomeScreen() {
       ws.onerror = (e) => console.log("WS Error");
     };
     connect();
-    return () => { ws?.close(); clearTimeout(reconnectTimeout); };
+    return () => {
+      ws?.close();
+      clearTimeout(reconnectTimeout);
+    };
   }, []);
 
   // UI Helpers
@@ -198,20 +208,26 @@ export default function HomeScreen() {
 
   const getPointsString = (points: number[][]) => {
     const rect = getDisplayedRect();
-    return points.map(p => {
-      const px = rect.x + p[0] * rect.width;
-      const py = rect.y + p[1] * rect.height;
-      return `${px},${py}`;
-    }).join(" ");
+    return points
+      .map((p) => {
+        const px = rect.x + p[0] * rect.width;
+        const py = rect.y + p[1] * rect.height;
+        return `${px},${py}`;
+      })
+      .join(" ");
   };
 
   const getLabelPosition = (points: number[][]) => {
     const rect = getDisplayedRect();
-    let sumX = 0, sumY = 0;
-    points.forEach(p => { sumX += p[0]; sumY += p[1]; });
+    let sumX = 0,
+      sumY = 0;
+    points.forEach((p) => {
+      sumX += p[0];
+      sumY += p[1];
+    });
     return {
       x: rect.x + (sumX / points.length) * rect.width,
-      y: rect.y + (sumY / points.length) * rect.height
+      y: rect.y + (sumY / points.length) * rect.height,
     };
   };
 
@@ -233,7 +249,9 @@ export default function HomeScreen() {
     return (
       <ThemedView style={[styles.container, styles.center]}>
         <ActivityIndicator size="large" color="#0a7ea4" />
-        <ThemedText style={{ marginTop: 20 }}>Finding Parking Spots...</ThemedText>
+        <ThemedText style={{ marginTop: 20 }}>
+          Finding Parking Spots...
+        </ThemedText>
       </ThemedView>
     );
   }
@@ -243,7 +261,9 @@ export default function HomeScreen() {
       <StatusBar barStyle="light-content" />
 
       <View style={[styles.headerContainer, { paddingTop: HEADER_HEIGHT }]}>
-        <ThemedText type="title" style={styles.appTitle}>TeraSpot</ThemedText>
+        <ThemedText type="title" style={styles.appTitle}>
+          TeraSpot
+        </ThemedText>
         <ThemedText style={styles.subtitle}>Smart Parking Finder</ThemedText>
       </View>
 
@@ -253,14 +273,26 @@ export default function HomeScreen() {
         <View style={styles.rowLabel}>
           <ThemedText type="defaultSemiBold">FACILITY</ThemedText>
         </View>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.scrollRow}>
-          {facilities.map(fac => (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.scrollRow}
+        >
+          {facilities.map((fac) => (
             <TouchableOpacity
               key={fac}
-              style={[styles.pill, selectedFacility === fac && styles.pillActive]}
+              style={[
+                styles.pill,
+                selectedFacility === fac && styles.pillActive,
+              ]}
               onPress={() => handleFacilitySelect(fac)}
             >
-              <ThemedText style={[styles.pillText, selectedFacility === fac && styles.pillTextActive]}>
+              <ThemedText
+                style={[
+                  styles.pillText,
+                  selectedFacility === fac && styles.pillTextActive,
+                ]}
+              >
                 {fac.toUpperCase()}
               </ThemedText>
             </TouchableOpacity>
@@ -268,32 +300,52 @@ export default function HomeScreen() {
         </ScrollView>
 
         {/* Camera/Zone Selector (Only if facility selected) */}
-        {selectedFacility && devicesByFacility[selectedFacility]?.length > 0 && (
-          <>
-            <View style={[styles.rowLabel, { marginTop: 15 }]}>
-              <ThemedText type="defaultSemiBold">CAMERA / ZONE</ThemedText>
-            </View>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.scrollRow}>
-              {devicesByFacility[selectedFacility].map(dev => (
-                <TouchableOpacity
-                  key={dev}
-                  style={[styles.pill, styles.pillSmall, selectedDevice === dev && styles.pillActive]}
-                  onPress={() => setSelectedDevice(dev)}
-                >
-                  <ThemedText style={[styles.pillText, styles.pillTextSmall, selectedDevice === dev && styles.pillTextActive]}>
-                    {dev}
-                  </ThemedText>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </>
-        )}
+        {selectedFacility &&
+          devicesByFacility[selectedFacility]?.length > 0 && (
+            <>
+              <View style={[styles.rowLabel, { marginTop: 15 }]}>
+                <ThemedText type="defaultSemiBold">CAMERA / ZONE</ThemedText>
+              </View>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={styles.scrollRow}
+              >
+                {devicesByFacility[selectedFacility].map((dev) => (
+                  <TouchableOpacity
+                    key={dev}
+                    style={[
+                      styles.pill,
+                      styles.pillSmall,
+                      selectedDevice === dev && styles.pillActive,
+                    ]}
+                    onPress={() => setSelectedDevice(dev)}
+                  >
+                    <ThemedText
+                      style={[
+                        styles.pillText,
+                        styles.pillTextSmall,
+                        selectedDevice === dev && styles.pillTextActive,
+                      ]}
+                    >
+                      {dev}
+                    </ThemedText>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </>
+          )}
       </View>
 
       {/* Error Banner */}
       {errorMsg && (
-        <TouchableOpacity onPress={() => setRefreshKey(k => k + 1)} style={styles.errorBanner}>
-          <ThemedText style={styles.errorText}>⚠️ {errorMsg} (Tap to Retry)</ThemedText>
+        <TouchableOpacity
+          onPress={() => setRefreshKey((k) => k + 1)}
+          style={styles.errorBanner}
+        >
+          <ThemedText style={styles.errorText}>
+            ⚠️ {errorMsg} (Tap to Retry)
+          </ThemedText>
         </TouchableOpacity>
       )}
 
@@ -312,8 +364,13 @@ export default function HomeScreen() {
             </View>
           </View>
 
-          <TouchableOpacity style={styles.viewToggle} onPress={() => setViewMode(viewMode === "map" ? "grid" : "map")}>
-            <ThemedText style={styles.viewToggleText}>{viewMode === "map" ? "GRID VIEW" : "MAP VIEW"}</ThemedText>
+          <TouchableOpacity
+            style={styles.viewToggle}
+            onPress={() => setViewMode(viewMode === "map" ? "grid" : "map")}
+          >
+            <ThemedText style={styles.viewToggleText}>
+              {viewMode === "map" ? "GRID VIEW" : "MAP VIEW"}
+            </ThemedText>
           </TouchableOpacity>
         </View>
 
@@ -355,7 +412,9 @@ export default function HomeScreen() {
               </Svg>
             ) : (
               <View style={styles.center}>
-                <ThemedText style={{ color: '#666' }}>No ROI Configured</ThemedText>
+                <ThemedText style={{ color: "#666" }}>
+                  No ROI Configured
+                </ThemedText>
               </View>
             )}
           </View>
@@ -367,9 +426,17 @@ export default function HomeScreen() {
                 const status = statuses[poly.space_id];
                 const isOccupied = status === "occupied";
                 return (
-                  <View key={index} style={[styles.gridItem, { backgroundColor: isOccupied ? "#ff4444" : "#00c853" }]}>
+                  <View
+                    key={index}
+                    style={[
+                      styles.gridItem,
+                      { backgroundColor: isOccupied ? "#ff4444" : "#00c853" },
+                    ]}
+                  >
                     <ThemedText style={styles.gridId}>{id}</ThemedText>
-                    <ThemedText style={styles.gridStatus}>{isOccupied ? "BUSY" : "FREE"}</ThemedText>
+                    <ThemedText style={styles.gridStatus}>
+                      {isOccupied ? "BUSY" : "FREE"}
+                    </ThemedText>
                   </View>
                 );
               })}
@@ -384,64 +451,64 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#121212', // Dark background
+    backgroundColor: "#121212", // Dark background
   },
   center: {
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     flex: 1,
   },
   headerContainer: {
     paddingHorizontal: 20,
     paddingBottom: 15,
-    backgroundColor: '#1e1e1e',
+    backgroundColor: "#1e1e1e",
     borderBottomWidth: 1,
-    borderBottomColor: '#333',
+    borderBottomColor: "#333",
   },
   appTitle: {
     fontSize: 28,
-    fontWeight: '800',
-    color: '#fff',
+    fontWeight: "800",
+    color: "#fff",
     letterSpacing: 0.5,
   },
   subtitle: {
-    color: '#aaa',
+    color: "#aaa",
     fontSize: 14,
     marginTop: 2,
   },
   selectorContainer: {
     paddingVertical: 15,
     paddingHorizontal: 20,
-    backgroundColor: '#181818',
+    backgroundColor: "#181818",
   },
   rowLabel: {
     marginBottom: 8,
   },
   scrollRow: {
-    flexDirection: 'row',
+    flexDirection: "row",
   },
   pill: {
     paddingHorizontal: 16,
     paddingVertical: 10,
-    backgroundColor: '#333',
+    backgroundColor: "#333",
     borderRadius: 12,
     marginRight: 12,
   },
   pillActive: {
-    backgroundColor: '#0a7ea4', // Brand Blue
-    shadowColor: '#0a7ea4',
+    backgroundColor: "#0a7ea4", // Brand Blue
+    shadowColor: "#0a7ea4",
     shadowOpacity: 0.4,
     shadowRadius: 5,
     elevation: 5,
   },
   pillText: {
-    color: '#ccc',
-    fontWeight: '600',
+    color: "#ccc",
+    fontWeight: "600",
     fontSize: 14,
   },
   pillTextActive: {
-    color: '#fff',
-    fontWeight: 'bold',
+    color: "#fff",
+    fontWeight: "bold",
   },
   pillSmall: {
     paddingVertical: 6,
@@ -452,38 +519,38 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   errorBanner: {
-    backgroundColor: '#3e1b1b',
+    backgroundColor: "#3e1b1b",
     padding: 10,
     margin: 10,
     borderRadius: 8,
-    alignItems: 'center',
+    alignItems: "center",
   },
   errorText: {
-    color: '#ff6b6b',
-    fontWeight: 'bold',
+    color: "#ff6b6b",
+    fontWeight: "bold",
   },
   contentArea: {
     flex: 1,
-    backgroundColor: '#121212',
+    backgroundColor: "#121212",
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    overflow: 'hidden',
+    overflow: "hidden",
     marginTop: 5,
   },
   toolbar: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     paddingHorizontal: 20,
     paddingVertical: 15,
   },
   legend: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 15,
   },
   legendItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
   },
   dot: {
     width: 8,
@@ -492,60 +559,60 @@ const styles = StyleSheet.create({
     marginRight: 6,
   },
   legendText: {
-    color: '#aaa',
+    color: "#aaa",
     fontSize: 12,
   },
   viewToggle: {
-    backgroundColor: '#2a2a2a',
+    backgroundColor: "#2a2a2a",
     paddingVertical: 6,
     paddingHorizontal: 12,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#444',
+    borderColor: "#444",
   },
   viewToggleText: {
-    color: '#fff',
+    color: "#fff",
     fontSize: 10,
-    fontWeight: 'bold',
+    fontWeight: "bold",
   },
   vizContainer: {
     flex: 1,
     marginHorizontal: 15,
     marginBottom: 20,
-    backgroundColor: '#1f1f1f',
+    backgroundColor: "#1f1f1f",
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#333',
-    overflow: 'hidden',
+    borderColor: "#333",
+    overflow: "hidden",
   },
   gridContainer: {
     flex: 1,
     paddingHorizontal: 15,
   },
   grid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: 10,
     paddingBottom: 40,
-    justifyContent: 'center',
+    justifyContent: "center",
   },
   gridItem: {
-    width: '30%',
+    width: "30%",
     aspectRatio: 1,
     borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     elevation: 2,
   },
   gridId: {
     fontSize: 18,
-    fontWeight: 'bold',
-    color: '#fff',
+    fontWeight: "bold",
+    color: "#fff",
     marginBottom: 4,
   },
   gridStatus: {
     fontSize: 10,
-    fontWeight: 'bold',
-    color: 'rgba(255,255,255,0.8)',
+    fontWeight: "bold",
+    color: "rgba(255,255,255,0.8)",
   },
 });

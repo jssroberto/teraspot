@@ -3,6 +3,9 @@ name: Deploy Lambdas
 on:
   push:
     branches: [main]
+    paths:
+      - "backend/**"
+      - ".github/workflows/lambdas-deploy.yml"
 
 jobs:
   test:

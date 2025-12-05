@@ -9,7 +9,6 @@ from datetime import UTC, datetime
 
 from awscrt import mqtt
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -36,7 +35,9 @@ def generate_mocked_spaces(count=30, prefix="A"):
             cumulative += prob
             if rand <= cumulative:
                 min_conf, max_conf, _ = confidence_distribution[level]
-                confidence = round(min_conf + random.random() * (max_conf - min_conf), 3)
+                confidence = round(
+                    min_conf + random.random() * (max_conf - min_conf), 3
+                )
                 break
 
         spaces[space_id] = {

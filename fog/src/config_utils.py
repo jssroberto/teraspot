@@ -6,11 +6,10 @@ import os
 import sys
 from typing import List, Optional
 
-from dotenv import load_dotenv
-
 import boto3
+import requests
 from botocore.exceptions import BotoCoreError, ClientError
-
+from dotenv import load_dotenv
 
 logger = logging.getLogger(__name__)
 
@@ -106,15 +105,10 @@ def _load_roi_config_from_s3(bucket, key, region=None):
     return _extract_roi_spaces(payload)
 
 
-import requests
-
 def _load_roi_config_from_api(device_id):
     try:
         api_url = "https://7omj4x5pbg.execute-api.us-east-1.amazonaws.com/dev/config"
-        payload = {
-            "action": "GET",
-            "config_id": f"roi-{device_id}"
-        }
+        payload = {"action": "GET", "config_id": f"roi-{device_id}"}
         resp = requests.post(api_url, json=payload, timeout=5)
         if resp.status_code == 200:
             config = resp.json().get("config", {})
@@ -149,7 +143,7 @@ def resolve_roi_spaces(args) -> Optional[List[dict]]:
         except (OSError, ValueError, json.JSONDecodeError) as exc:
             logger.error("Failed to load ROI config file: %s", exc)
             # Don't exit, just log error and try next method
-    
+
     # 3. Fallback to S3 (Direct)
     if args.roi_s3_bucket and args.roi_s3_key:
         try:
