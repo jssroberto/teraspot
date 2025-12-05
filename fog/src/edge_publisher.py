@@ -11,6 +11,7 @@ import logging
 import sys
 import time
 
+import cv2
 import requests
 from awscrt import mqtt
 from awsiot import mqtt_connection_builder
@@ -53,6 +54,36 @@ def on_connection_closed(connection, callback_data):
     logger.info("Connection closed")
 
 
+def capture_video_frame(video_path):
+    """Capture a single frame from a video file for screenshot purposes."""
+    try:
+        cap = cv2.VideoCapture(video_path)
+        if not cap.isOpened():
+            logger.error(f"Failed to open video for screenshot: {video_path}")
+            return None
+
+        # Random seek to get a different frame each time?
+        # Or just read the first frame? Let's read a random frame to simulate "live"
+        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        if total_frames > 0:
+            import random
+
+            random_frame = random.randint(0, total_frames - 1)
+            cap.set(cv2.CAP_PROP_POS_FRAMES, random_frame)
+
+        ret, frame = cap.read()
+        cap.release()
+
+        if ret:
+            success, encoded_image = cv2.imencode(".jpg", frame)
+            if success:
+                return encoded_image.tobytes()
+        return None
+    except Exception as e:
+        logger.error(f"Error capturing video frame: {e}")
+        return None
+
+
 def main():
     """Main function"""
     parser = argparse.ArgumentParser(description="TeraSpot Edge Publisher")
@@ -66,6 +97,11 @@ def main():
         "--image",
         default="fog/assets/bus.jpg",
         help="Image path for YOLO inference (default: fog/assets/bus.jpg)",
+    )
+    parser.add_argument(
+        "--static-mock",
+        action="store_true",
+        help="Generate mock data once and keep it static (for non-YOLO scalability)",
     )
     parser.add_argument(
         "--video",
@@ -128,6 +164,11 @@ def main():
         default=5,
         help="Interval between messages in seconds (default: 5)",
     )
+    parser.add_argument(
+        "--prefix",
+        default="A",
+        help="Prefix for generated space IDs (default: A)",
+    )
 
     args = parser.parse_args()
 
@@ -140,6 +181,22 @@ def main():
 
     change_tracker = SpaceStateTracker()
     roi_spaces = None
+
+    # Try to fetch dynamic config (Video Source) from API
+    # We do this even in Mock mode for Hybrid Mode support
+    try:
+        api_url = "https://7omj4x5pbg.execute-api.us-east-1.amazonaws.com/dev/config"
+        payload = {"action": "GET", "config_id": f"device-{args.device_id}"}
+        resp = requests.post(api_url, json=payload, timeout=5)
+        if resp.status_code == 200:
+            device_config = resp.json().get("config", {}).get("value", {})
+            remote_video = device_config.get("video_source")
+            if remote_video:
+                logger.info(f"Found remote video source configuration: {remote_video}")
+                args.video = remote_video
+    except Exception as e:
+        logger.warning(f"Failed to fetch remote device config: {e}")
+
     if args.use_yolo:
         roi_spaces = resolve_roi_spaces(args)
 
@@ -197,7 +254,12 @@ def main():
     logger.info(f" Endpoint: {config['endpoint']}")
     logger.info(f" Thing Name: {config['thing_name']}")
     logger.info(f" Spaces: {args.spaces}")
-    logger.info(f" Mode: {'YOLO INFERENCE' if args.use_yolo else 'MOCKED DATA'}")
+
+    mode_str = "YOLO INFERENCE" if args.use_yolo else "MOCKED DATA"
+    if not args.use_yolo and args.video:
+        mode_str += " (HYBRID MODE: Video Screenshots Enabled)"
+
+    logger.info(f" Mode: {mode_str}")
     logger.info(
         f" Iterations: {args.iterations if args.iterations > 0 else 'INFINITE'}"
     )
@@ -276,7 +338,23 @@ def main():
                         else:
                             logger.warning("No frame available for screenshot")
                     else:
-                        logger.warning("YOLO not enabled, cannot take screenshot")
+                        logger.warning("No video source available for screenshot")
+
+                    if frame_bytes:
+                        logger.info("Uploading screenshot...")
+                        resp = requests.put(
+                            upload_url,
+                            data=frame_bytes,
+                            headers={"Content-Type": "image/jpeg"},
+                        )
+                        if resp.status_code == 200:
+                            logger.info("Screenshot uploaded successfully")
+                        else:
+                            logger.error(
+                                f"Failed to upload screenshot: {resp.status_code} - {resp.text}"
+                            )
+                    else:
+                        logger.warning("Failed to capture frame")
 
                 elif command == "reload_config":
                     logger.info("Reloading configuration...")
@@ -300,6 +378,7 @@ def main():
 
         iteration = 0
         last_publish_time = 0
+        cached_static_snapshot = None
         HEARTBEAT_INTERVAL = 60  # Send heartbeat every 60s
 
         while args.iterations < 0 or iteration < args.iterations:
@@ -321,7 +400,16 @@ def main():
                     conf_threshold=args.conf_threshold,
                 )
             else:
-                snapshot = generate_mocked_spaces(args.spaces)
+                if args.static_mock:
+                    if cached_static_snapshot is None:
+                        logger.info("Generating STATIC mock data (will be reused)...")
+                        cached_static_snapshot = generate_mocked_spaces(
+                            args.spaces, prefix=args.prefix
+                        )
+                    snapshot = cached_static_snapshot
+                    data_source = "mocked-static"
+                else:
+                    snapshot = generate_mocked_spaces(args.spaces, prefix=args.prefix)
 
             spaces = snapshot["spaces"]
             data_metadata = {
@@ -384,6 +472,19 @@ def main():
 
     except KeyboardInterrupt:
         logger.info("\n\nInterrupted by user")
+        # Publish offline message before disconnecting
+        offline_payload = json.dumps(
+            {
+                "device_id": config["thing_name"],
+                "status": "offline",
+                "timestamp": int(time.time()),
+                "message": "Device disconnected gracefully",
+            }
+        )
+        mqtt_connection.publish(
+            topic=lwt_topic, payload=offline_payload, qos=mqtt.QoS.AT_LEAST_ONCE
+        )
+        time.sleep(0.5)  # Give time to publish
         mqtt_connection.disconnect()
 
     except Exception as e:
@@ -396,4 +497,12 @@ def main():
 
 
 if __name__ == "__main__":
+    # Handle SIGTERM (Docker Stop)
+    import signal
+
+    def handle_sigterm(signum, frame):
+        raise KeyboardInterrupt
+
+    signal.signal(signal.SIGTERM, handle_sigterm)
+
     main()

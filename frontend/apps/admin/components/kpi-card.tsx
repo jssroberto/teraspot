@@ -55,15 +55,15 @@ export function KPICard({
 
 const styles = StyleSheet.create({
     card: {
+        flex: 1,
         padding: 24,
         borderRadius: 16,
         marginBottom: 20,
         borderWidth: 1,
-        borderColor: "rgba(255,255,255,0.1)", // Subtle border for dark mode
-        backgroundColor: "#1E1E1E", // Darker premium background
+        borderColor: "rgba(0,0,0,0.1)", // Subtle border that works in both modes
         shadowColor: "#000",
         shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
+        shadowOpacity: 0.1,
         shadowRadius: 8,
         elevation: 5,
     },
@@ -71,10 +71,9 @@ const styles = StyleSheet.create({
         fontSize: 13,
         fontWeight: "700",
         marginBottom: 16,
-        opacity: 0.5,
+        opacity: 0.6,
         letterSpacing: 1.5,
         textTransform: "uppercase",
-        color: "#E0E0E0",
     },
     value: {
         fontSize: 36,
@@ -84,8 +83,7 @@ const styles = StyleSheet.create({
     },
     subtitle: {
         fontSize: 14,
-        opacity: 0.5,
-        color: "#B0B0B0",
+        opacity: 0.6,
         fontWeight: "500",
     },
 });

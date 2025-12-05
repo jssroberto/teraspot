@@ -28,19 +28,29 @@ class DecimalEncoder(json.JSONEncoder):
 # LEVEL 1: REAL-TIME OPERATIONAL METRICS
 # ============================================================================
 
-def get_current_occupancy_rate():
+def get_current_occupancy_rate(items=None):
     """
     KPI 1: Current Occupancy Rate (%)
     Formula: (Occupied Spaces / Total Spaces) × 100
     Source: Current table (parking-spaces-dev)
     """
     try:
-        response = current_table.scan(
-            ProjectionExpression='space_id, #st, #ts',
-            ExpressionAttributeNames={'#st': 'status', '#ts': 'timestamp'}
-        )
+        if items is None:
+            items = []
+            scan_kwargs = {
+                'ProjectionExpression': 'space_id, #st, #ts',
+                'ExpressionAttributeNames': {'#st': 'status', '#ts': 'timestamp'}
+            }
+            done = False
+            start_key = None
+            while not done:
+                if start_key:
+                    scan_kwargs['ExclusiveStartKey'] = start_key
+                response = current_table.scan(**scan_kwargs)
+                items.extend(response.get('Items', []))
+                start_key = response.get('LastEvaluatedKey', None)
+                done = start_key is None
         
-        items = response.get('Items', [])
         total_spaces = len(items)
         
         if total_spaces == 0:
@@ -84,7 +94,7 @@ def get_current_occupancy_rate():
         return {'error': str(e)}
 
 
-def get_available_spaces_by_zone():
+def get_available_spaces_by_zone(items=None):
     """
     KPI 2: Number of Available Spaces
     Formula: Total Spaces - Occupied Spaces
@@ -93,12 +103,12 @@ def get_available_spaces_by_zone():
     Status: 'vacant' indicates available space
     """
     try:
-        response = current_table.scan(
-            ProjectionExpression='space_id, #st, zone_id, facility_id, #ts',
-            ExpressionAttributeNames={'#st': 'status', '#ts': 'timestamp'}
-        )
-        
-        items = response.get('Items', [])
+        if items is None:
+            response = current_table.scan(
+                ProjectionExpression='space_id, #st, zone_id, facility_id, #ts',
+                ExpressionAttributeNames={'#st': 'status', '#ts': 'timestamp'}
+            )
+            items = response.get('Items', [])
         
         # We count available spaces based on last known status 'vacant'
         vacant_items = [item for item in items if item.get('status') == 'vacant']
@@ -138,14 +148,14 @@ def get_available_spaces_by_zone():
         return {'error': str(e)}
 
 
-def check_critical_capacity_alert():
+def check_critical_capacity_alert(items=None):
     """
     KPI 3: Critical Capacity Alert Status
     Trigger condition: Occupancy rate >= 95%
     Enables proactive response from the operator
     """
     try:
-        occupancy_data = get_current_occupancy_rate()
+        occupancy_data = get_current_occupancy_rate(items)
         
         if 'error' in occupancy_data:
             return occupancy_data
@@ -174,7 +184,7 @@ def check_critical_capacity_alert():
 # LEVEL 2: SYSTEM PERFORMANCE AND QUALITY METRICS
 # ============================================================================
 
-def get_average_detection_confidence(time_window_minutes=15):
+def get_average_detection_confidence(time_window_minutes=15, items=None):
     """
     KPI 4: Average Detection Confidence
     Formula: Average(confidence_score) of OCCUPIED spaces in last 15 minutes
@@ -185,12 +195,13 @@ def get_average_detection_confidence(time_window_minutes=15):
         now = datetime.now(timezone.utc)
         threshold_time = now - timedelta(minutes=time_window_minutes)
         
-        response = current_table.scan(
-            ProjectionExpression='confidence, #ts, #st, space_id',
-            ExpressionAttributeNames={'#ts': 'timestamp', '#st': 'status'}
-        )
+        if items is None:
+            response = current_table.scan(
+                ProjectionExpression='confidence, #ts, #st, space_id',
+                ExpressionAttributeNames={'#ts': 'timestamp', '#st': 'status'}
+            )
+            items = response.get('Items', [])
         
-        items = response.get('Items', [])
         recent_confidences = []
         debug_stats = {'total': len(items), 'skipped_time': 0, 'skipped_vacant': 0, 'skipped_no_conf': 0, 'occupied_ids': []}
         
@@ -259,7 +270,7 @@ def get_average_detection_confidence(time_window_minutes=15):
         return {'error': str(e)}
 
 
-def get_low_confidence_event_rate(time_window_minutes=15, threshold=0.75):
+def get_low_confidence_event_rate(time_window_minutes=15, threshold=0.75, items=None):
     """
     KPI 5: Low Confidence Event Rate
     Formula: (Events with confidence < 0.75 / Total Events) × 100
@@ -270,12 +281,13 @@ def get_low_confidence_event_rate(time_window_minutes=15, threshold=0.75):
         now = datetime.now(timezone.utc)
         threshold_time = now - timedelta(minutes=time_window_minutes)
         
-        response = current_table.scan(
-            ProjectionExpression='confidence, #ts, space_id',
-            ExpressionAttributeNames={'#ts': 'timestamp'}
-        )
+        if items is None:
+            response = current_table.scan(
+                ProjectionExpression='confidence, #ts, space_id',
+                ExpressionAttributeNames={'#ts': 'timestamp'}
+            )
+            items = response.get('Items', [])
         
-        items = response.get('Items', [])
         total_events = 0
         low_confidence_events = 0
         
@@ -330,7 +342,7 @@ def get_low_confidence_event_rate(time_window_minutes=15, threshold=0.75):
         return {'error': str(e)}
 
 
-def get_system_health_device_uptime(inactive_threshold_minutes=5):
+def get_system_health_device_uptime(inactive_threshold_minutes=1, items=None):
     """
     KPI 6: System Uptime / Device Health
     Formula: (Active Devices / Total Devices) × 100
@@ -341,29 +353,34 @@ def get_system_health_device_uptime(inactive_threshold_minutes=5):
         now = datetime.now(timezone.utc)
         threshold_time = now - timedelta(minutes=inactive_threshold_minutes)
         
-        response = current_table.scan(
-            ProjectionExpression='device_id, #ts',
-            ExpressionAttributeNames={'#ts': 'timestamp'}
-        )
+        if items is None:
+            response = current_table.scan(
+                ProjectionExpression='device_id, #ts, is_alive',
+                ExpressionAttributeNames={'#ts': 'timestamp'}
+            )
+            items = response.get('Items', [])
         
-        items = response.get('Items', [])
-        devices_last_seen = {}
+        devices_status = {} # device_id -> {'last_seen': datetime, 'is_alive': bool}
         
         for item in items:
             device_id = item.get('device_id')
             ts_str = item.get('timestamp')
+            is_alive = item.get('is_alive', True) # Default to True if missing
             
             if device_id and ts_str:
                 try:
                     ts_str = ts_str.replace('Z', '+00:00')
                     item_time = datetime.fromisoformat(ts_str)
                     
-                    if device_id not in devices_last_seen or item_time > devices_last_seen[device_id]:
-                        devices_last_seen[device_id] = item_time
+                    if device_id not in devices_status:
+                        devices_status[device_id] = {'last_seen': item_time, 'is_alive': is_alive}
+                    else:
+                        if item_time > devices_status[device_id]['last_seen']:
+                             devices_status[device_id] = {'last_seen': item_time, 'is_alive': is_alive}
                 except ValueError:
                     continue
         
-        total_devices = len(devices_last_seen)
+        total_devices = len(devices_status)
         
         if total_devices == 0:
             return {
@@ -374,13 +391,19 @@ def get_system_health_device_uptime(inactive_threshold_minutes=5):
                 'status': 'NO_DATA'
             }
         
-        active_devices = sum(1 for last_seen in devices_last_seen.values() 
-                           if last_seen >= threshold_time)
+        active_devices = 0
+        inactive_devices = []
+        
+        for device_id, status in devices_status.items():
+            last_seen = status['last_seen']
+            is_alive = status['is_alive']
+            
+            if is_alive and last_seen >= threshold_time:
+                active_devices += 1
+            else:
+                inactive_devices.append(device_id)
         
         uptime_percentage = (active_devices / total_devices) * 100
-        
-        inactive_devices = [device_id for device_id, last_seen in devices_last_seen.items() 
-                          if last_seen < threshold_time]
         
         status = 'HEALTHY' if uptime_percentage >= 90 else 'DEGRADED'
         
@@ -394,6 +417,14 @@ def get_system_health_device_uptime(inactive_threshold_minutes=5):
             'active_devices': active_devices,
             'total_devices': total_devices,
             'inactive_devices': inactive_devices,
+            'device_list': [
+                {
+                    'device_id': d_id,
+                    'status': 'active' if d_id not in inactive_devices else 'inactive',
+                    'last_seen': stat['last_seen'].isoformat()
+                }
+                for d_id, stat in devices_status.items()
+            ],
             'status': status,
             'timestamp': datetime.now(timezone.utc).isoformat()
         }
@@ -403,7 +434,7 @@ def get_system_health_device_uptime(inactive_threshold_minutes=5):
         return {'error': str(e)}
 
 
-def get_message_processing_latency(time_window_minutes=15):
+def get_message_processing_latency(time_window_minutes=15, items=None):
     """
     KPI 7: Message Processing Latency
     Formula: Average(processed_timestamp - created_timestamp)
@@ -414,16 +445,17 @@ def get_message_processing_latency(time_window_minutes=15):
         now = datetime.now(timezone.utc)
         threshold_time = now - timedelta(minutes=time_window_minutes)
         
-        # Scan current table for recent updates
-        response = current_table.scan(
-            ProjectionExpression='#ts, #proc_ts',
-            ExpressionAttributeNames={
-                '#ts': 'timestamp',
-                '#proc_ts': 'processed_timestamp'
-            }
-        )
+        if items is None:
+            # Scan current table for recent updates
+            response = current_table.scan(
+                ProjectionExpression='#ts, #proc_ts',
+                ExpressionAttributeNames={
+                    '#ts': 'timestamp',
+                    '#proc_ts': 'processed_timestamp'
+                }
+            )
+            items = response.get('Items', [])
         
-        items = response.get('Items', [])
         latencies = []
         
         for item in items:
@@ -476,7 +508,7 @@ def get_message_processing_latency(time_window_minutes=15):
 # LEVEL 3: ANALYTICS AND TRENDS
 # ============================================================================
 
-def calculate_average_parking_duration(days_back=7):
+def calculate_average_parking_duration(days_back=7, items=None):
     """
     KPI 8: Average Parking Duration
     Formula: Average(exit_timestamp - entry_timestamp)
@@ -487,16 +519,16 @@ def calculate_average_parking_duration(days_back=7):
         now = datetime.now(timezone.utc)
         start_time = now - timedelta(days=days_back)
         
-        # Scan historical table
-        response = history_table.scan(
-            ProjectionExpression='space_id, #ts, #st',
-            ExpressionAttributeNames={
-                '#ts': 'timestamp',
-                '#st': 'status'
-            }
-        )
-        
-        items = response.get('Items', [])
+        if items is None:
+            # Scan historical table
+            response = history_table.scan(
+                ProjectionExpression='space_id, #ts, #st',
+                ExpressionAttributeNames={
+                    '#ts': 'timestamp',
+                    '#st': 'status'
+                }
+            )
+            items = response.get('Items', [])
         
         # Group events by space_id
         space_events = defaultdict(list)
@@ -570,7 +602,7 @@ def calculate_average_parking_duration(days_back=7):
         return {'error': str(e)}
 
 
-def get_peak_occupancy_hours(days_back=30):
+def get_peak_occupancy_hours(days_back=30, items=None):
     """
     KPI 9: Peak Occupancy Hours
     Adds hourly occupancy % from historical data
@@ -581,15 +613,21 @@ def get_peak_occupancy_hours(days_back=30):
         now = datetime.now(timezone.utc)
         start_time = now - timedelta(days=days_back)
         
-        response = history_table.scan(
-            ProjectionExpression='#ts, #st',
-            ExpressionAttributeNames={
-                '#ts': 'timestamp',
-                '#st': 'status'
+        if items is None:
+            items = []
+            scan_kwargs = {
+                'ProjectionExpression': '#ts, #st',
+                'ExpressionAttributeNames': {'#ts': 'timestamp', '#st': 'status'}
             }
-        )
-        
-        items = response.get('Items', [])
+            done = False
+            start_key = None
+            while not done:
+                if start_key:
+                    scan_kwargs['ExclusiveStartKey'] = start_key
+                response = history_table.scan(**scan_kwargs)
+                items.extend(response.get('Items', []))
+                start_key = response.get('LastEvaluatedKey', None)
+                done = start_key is None
         
         # Hourly occupancy counter (0-23)
         hourly_occupancy = defaultdict(lambda: {'occupied': 0, 'total': 0})
@@ -630,6 +668,7 @@ def get_peak_occupancy_hours(days_back=30):
         
         return {
             'peak_hours': [{'hour': h, 'occupancy_percentage': p} for h, p in peak_hours],
+            'hourly_breakdown': {str(h): p for h, p in hourly_percentages.items()},
             'days_analyzed': days_back,
             'timestamp': datetime.now(timezone.utc).isoformat()
         }
@@ -639,7 +678,7 @@ def get_peak_occupancy_hours(days_back=30):
         return {'error': str(e)}
 
 
-def get_occupancy_trend(hours_back=24, interval_minutes=60):
+def get_occupancy_trend(hours_back=24, interval_minutes=60, items=None):
     """
     KPI 10: Occupancy Trend (Time Series)
     Historical visualization of occupancy rates
@@ -650,12 +689,26 @@ def get_occupancy_trend(hours_back=24, interval_minutes=60):
         now = datetime.now(timezone.utc)
         start_time = now - timedelta(hours=hours_back)
         
-        response = history_table.scan(
-            ProjectionExpression='space_id, #ts, #st',
-            ExpressionAttributeNames={'#ts': 'timestamp', '#st': 'status'}
-        )
-        
-        items = response.get('Items', [])
+        if items is None:
+            items = []
+            scan_kwargs = {
+                'ProjectionExpression': 'space_id, #ts, #st',
+                'ExpressionAttributeNames': {'#ts': 'timestamp', '#st': 'status'}
+            }
+            # Optional: Add FilterExpression for time range to optimize
+            # But DynamoDB scan filtering happens AFTER read, so cost is same.
+            # However, it saves data transfer. 
+            # scan_kwargs['FilterExpression'] = ... (complexity with timestamps string comparison)
+            
+            done = False
+            start_key = None
+            while not done:
+                if start_key:
+                    scan_kwargs['ExclusiveStartKey'] = start_key
+                response = history_table.scan(**scan_kwargs)
+                items.extend(response.get('Items', []))
+                start_key = response.get('LastEvaluatedKey', None)
+                done = start_key is None
         
         # Create time intervals
         time_slots = []
@@ -713,6 +766,116 @@ def get_occupancy_trend(hours_back=24, interval_minutes=60):
         return {'error': str(e)}
 
 
+def predict_future_occupancy(hours_back=168, prediction_horizon_hours=24):
+    """
+    KPI 11: Future Occupancy Prediction (Linear Regression)
+    Uses historical data (default 7 days) to predict trend.
+    Returns: Slope, Intercept, and Predicted points.
+    """
+    try:
+        # Get historical data
+        trend_result = get_occupancy_trend(hours_back=hours_back, interval_minutes=60)
+        data_points = trend_result.get('trend_data', [])
+        
+        if not data_points or len(data_points) < 2:
+            return {'error': 'Insufficient data for prediction'}
+
+        # Prepare X (timestamps as float) and Y (occupancy)
+        # Normalize X to start at 0
+        x_values = []
+        y_values = []
+        
+        start_ts = datetime.fromisoformat(data_points[0]['timestamp']).timestamp()
+        
+        for pt in data_points:
+            ts = datetime.fromisoformat(pt['timestamp']).timestamp()
+            x_values.append((ts - start_ts) / 3600) # Hours since start
+            y_values.append(pt['occupancy_rate'])
+
+        # Calculate Linear Regression: y = mx + b
+        n = len(x_values)
+        sum_x = sum(x_values)
+        sum_y = sum(y_values)
+        sum_xy = sum(x * y for x, y in zip(x_values, y_values))
+        sum_xx = sum(x * x for x in x_values)
+        
+        slope_m = (n * sum_xy - sum_x * sum_y) / (n * sum_xx - sum_x ** 2)
+        intercept_b = (sum_y - slope_m * sum_x) / n
+        
+        # Generate Predictions
+        predictions = []
+        last_x = x_values[-1]
+        
+        for h in range(1, prediction_horizon_hours + 1):
+            pred_x = last_x + h
+            pred_y = slope_m * pred_x + intercept_b
+            pred_y = max(0, min(100, pred_y)) # Clamp 0-100
+            
+            future_ts = datetime.fromtimestamp(start_ts + pred_x * 3600, tz=timezone.utc)
+            
+            predictions.append({
+                'timestamp': future_ts.isoformat(),
+                'predicted_occupancy': round(pred_y, 2)
+            })
+            
+        return {
+            'slope': round(slope_m, 4),
+            'intercept': round(intercept_b, 4),
+            'predictions': predictions,
+            'trend_direction': 'INCREASING' if slope_m > 0.05 else 'DECREASING' if slope_m < -0.05 else 'STABLE',
+            'timestamp': datetime.now(timezone.utc).isoformat()
+        }
+
+    except Exception as e:
+        logger.error(f"Error predicting occupancy: {str(e)}")
+        return {'error': str(e)}
+
+
+def get_recent_alerts(limit=50):
+    """
+    KPI 12: Recent Alerts Log
+    Fetches latest alerts persisted in history table with space_id='ALERTS'
+    """
+    try:
+        from boto3.dynamodb.conditions import Key
+        
+        response = history_table.query(
+            KeyConditionExpression=Key('space_id').eq('ALERTS'),
+            ScanIndexForward=False, # Descending (newest first)
+            Limit=limit
+        )
+        
+        items = response.get('Items', [])
+        alerts = []
+        
+        for item in items:
+            try:
+                # Basic fields
+                alert = {
+                    'timestamp': item.get('timestamp'),
+                    'status': item.get('status'),
+                    'device_id': item.get('device_id'),
+                    'space_id': item.get('space_id'),
+                }
+                
+                # Try to parse full details
+                if 'details' in item:
+                    details = json.loads(item['details'])
+                    alert.update(details)
+                
+                alerts.append(alert)
+            except Exception:
+                continue
+                
+        logger.info(f"Fetched {len(alerts)} recent alerts")
+        return {'alerts': alerts}
+
+    except Exception as e:
+        logger.error(f"Error fetching recent alerts: {str(e)}")
+        # If query fails (e.g. strict schema), try Scan fallback? No, simpler is better.
+        return {'error': str(e), 'alerts': []}
+
+
 # ============================================================================
 # MAIN HANDLER 
 # ============================================================================
@@ -767,6 +930,13 @@ def lambda_handler(event, context):
             'occupancy_trend': lambda: get_occupancy_trend(
                 params.get('hours_back', 24),
                 params.get('interval_minutes', 60)
+            ),
+            'prediction': lambda: predict_future_occupancy(
+                params.get('hours_back', 168),
+                params.get('prediction_horizon_hours', 24)
+            ),
+            'recent_alerts': lambda: get_recent_alerts(
+                params.get('limit', 50)
             )
         }
         
@@ -775,22 +945,45 @@ def lambda_handler(event, context):
             # Calculate all KPIs (full dashboard mode)
             logger.info("Calculating ALL KPIs for complete dashboard...")
             
+            # Pre-fetch data for optimization
+            # 1. Scan current table
+            current_response = current_table.scan(
+                ProjectionExpression='space_id, #st, #ts, zone_id, facility_id, confidence, device_id, is_alive, #proc_ts',
+                ExpressionAttributeNames={
+                    '#st': 'status', 
+                    '#ts': 'timestamp',
+                    '#proc_ts': 'processed_timestamp'
+                }
+            )
+            current_items = current_response.get('Items', [])
+            
+            # 2. Scan history table (limit to max window needed, e.g. 30 days)
+            # For simplicity we scan all, but in production we might want to query with index
+            history_response = history_table.scan(
+                ProjectionExpression='space_id, #ts, #st',
+                ExpressionAttributeNames={
+                    '#ts': 'timestamp', 
+                    '#st': 'status'
+                }
+            )
+            history_items = history_response.get('Items', [])
+            
             results = {
                 'level_1_operational': {
-                    'occupancy_rate': get_current_occupancy_rate(),
-                    'vacant_spaces': get_available_spaces_by_zone(),
-                    'critical_capacity': check_critical_capacity_alert()
+                    'occupancy_rate': get_current_occupancy_rate(current_items),
+                    'vacant_spaces': get_available_spaces_by_zone(current_items),
+                    'critical_capacity': check_critical_capacity_alert(current_items)
                 },
                 'level_2_performance': {
-                    'detection_confidence': get_average_detection_confidence(),
-                    'low_confidence_rate': get_low_confidence_event_rate(),
-                    'system_health': get_system_health_device_uptime(),
-                    'message_latency': get_message_processing_latency()
+                    'detection_confidence': get_average_detection_confidence(items=current_items),
+                    'low_confidence_rate': get_low_confidence_event_rate(items=current_items),
+                    'system_health': get_system_health_device_uptime(items=current_items, inactive_threshold_minutes=1),
+                    'message_latency': get_message_processing_latency(items=current_items)
                 },
                 'level_3_analytics': {
-                    'parking_duration': calculate_average_parking_duration(),
-                    'peak_hours': get_peak_occupancy_hours(),
-                    'occupancy_trend': get_occupancy_trend()
+                    'parking_duration': calculate_average_parking_duration(items=history_items),
+                    'peak_hours': get_peak_occupancy_hours(items=history_items),
+                    'occupancy_trend': get_occupancy_trend(items=history_items)
                 },
                 'metadata': {
                     'generated_at': datetime.now(timezone.utc).isoformat(),

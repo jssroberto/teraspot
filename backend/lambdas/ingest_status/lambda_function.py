@@ -42,6 +42,57 @@ def lambda_handler(event, context):
     try:
         logger.info("ingest_status triggered")
         raw_payload = _extract_raw_payload(event)
+        
+        # Check for LWT (Device Offline) Message
+        if isinstance(raw_payload, dict) and raw_payload.get("status") == "offline" and raw_payload.get("device_id"):
+            device_id = raw_payload["device_id"]
+            logger.info(f"Received LWT offline message for device: {device_id}")
+            
+            # Find all spaces for this device
+            # Note: Scan is inefficient but acceptable for low volume. 
+            # Ideally, we would use a GSI on device_id.
+            try:
+                # Handle pagination for Scan
+                items = []
+                scan_kwargs = {
+                    'FilterExpression': "device_id = :d",
+                    'ExpressionAttributeValues': {":d": device_id}
+                }
+                done = False
+                start_key = None
+                
+                while not done:
+                    if start_key:
+                        scan_kwargs['ExclusiveStartKey'] = start_key
+                    response = current_table.scan(**scan_kwargs)
+                    items.extend(response.get("Items", []))
+                    start_key = response.get('LastEvaluatedKey', None)
+                    done = start_key is None
+                    
+                logger.info(f"Found {len(items)} spaces to mark offline for {device_id}")
+                
+                with current_table.batch_writer() as batch:
+                    for item in items:
+                        # Update is_alive to False
+                        item["is_alive"] = False
+                        item["processed_timestamp"] = datetime.now(timezone.utc).isoformat()
+                        
+                        # Explicitly remove TTL if present to prevent deletion
+                        if 'ttl' in item:
+                            logger.info(f"Removing TTL from item {item.get('space_id')}")
+                            item.pop('ttl', None)
+                            
+                        logger.info(f"Updating item: {item}")
+                        batch.put_item(Item=item)
+                        
+                return {
+                    "statusCode": 200,
+                    "body": json.dumps({"success": True, "message": f"Marked {len(items)} spaces offline"})
+                }
+            except Exception as e:
+                logger.error(f"Failed to process LWT for {device_id}: {e}")
+                return {"statusCode": 500, "body": json.dumps({"error": str(e)})}
+
         events = parse_events(raw_payload)
 
         if not events:
