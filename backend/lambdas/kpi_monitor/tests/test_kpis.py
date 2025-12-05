@@ -441,19 +441,48 @@ class TestKPILambda:
         assert "data" in body
         assert body["data"]["occupancy_rate"] == 75.0
 
-    @patch("lambda_function.get_current_occupancy_rate")
-    @patch("lambda_function.get_available_spaces_by_zone")
-    @patch("lambda_function.check_critical_capacity_alert")
-    @patch("lambda_function.get_average_detection_confidence")
-    @patch("lambda_function.get_low_confidence_event_rate")
-    @patch("lambda_function.get_system_health_device_uptime")
-    @patch("lambda_function.calculate_average_parking_duration")
-    @patch("lambda_function.get_peak_occupancy_hours")
+    @patch("lambda_function.history_table")
+    @patch("lambda_function.current_table")
     @patch("lambda_function.get_occupancy_trend")
-    def test_lambda_handler_all_kpis(self, *mocks):
+    @patch("lambda_function.get_peak_occupancy_hours")
+    @patch("lambda_function.calculate_average_parking_duration")
+    @patch("lambda_function.get_system_health_device_uptime")
+    @patch("lambda_function.get_low_confidence_event_rate")
+    @patch("lambda_function.get_average_detection_confidence")
+    @patch("lambda_function.check_critical_capacity_alert")
+    @patch("lambda_function.get_available_spaces_by_zone")
+    @patch("lambda_function.get_current_occupancy_rate")
+    def test_lambda_handler_all_kpis(
+        self,
+        mock_occupancy,
+        mock_vacant,
+        mock_alert,
+        mock_avg_conf,
+        mock_low_conf,
+        mock_health,
+        mock_duration,
+        mock_peak,
+        mock_trend,
+        mock_current_table,
+        mock_history_table,
+    ):
         """Test: Lambda handler - request all KPIs (dashboard mode)"""
+        # Mock DynamoDB scans
+        mock_current_table.scan.return_value = {"Items": []}
+        mock_history_table.scan.return_value = {"Items": []}
+
         # Mock all KPI functions
-        for mock in mocks:
+        for mock in [
+            mock_occupancy,
+            mock_vacant,
+            mock_alert,
+            mock_avg_conf,
+            mock_low_conf,
+            mock_health,
+            mock_duration,
+            mock_peak,
+            mock_trend,
+        ]:
             mock.return_value = {"test": "data"}
 
         event = {"kpi": "all"}
