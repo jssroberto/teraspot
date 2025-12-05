@@ -135,6 +135,7 @@ resource "aws_lambda_function" "kpi_monitor" {
   source_code_hash = data.archive_file.kpi_monitor_zip.output_base64sha256
   runtime          = "python3.12"
   timeout          = 30
+  memory_size      = 1024
   environment {
     variables = {
       HISTORY_TABLE = "parking-history"
@@ -682,7 +683,8 @@ resource "aws_iam_role_policy" "ingest_status_policy" {
           "dynamodb:PutItem",
           "dynamodb:UpdateItem",
           "dynamodb:BatchWriteItem",
-          "dynamodb:GetItem"
+          "dynamodb:GetItem",
+          "dynamodb:Scan"
         ]
         Resource = "arn:aws:dynamodb:${var.aws_region}:${data.aws_caller_identity.current.account_id}:table/${var.dynamodb_table_name}"
       },

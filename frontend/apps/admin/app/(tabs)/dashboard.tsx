@@ -328,6 +328,24 @@ export default function DashboardScreen() {
                                         {level_2_performance.system_health.status}
                                     </ThemedText>
                                 )}
+
+                                {level_2_performance.system_health.device_list?.filter(d => d.status === 'inactive').length > 0 && (
+                                    <View style={{ marginTop: 12, width: '100%' }}>
+                                        <ThemedText style={{ fontSize: 11, fontWeight: 'bold', marginBottom: 4, opacity: 0.7 }}>
+                                            Cámaras Inactivas:
+                                        </ThemedText>
+                                        {level_2_performance.system_health.device_list
+                                            .filter(d => d.status === 'inactive')
+                                            .map(device => (
+                                                <View key={device.device_id} style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 2 }}>
+                                                    <ThemedText style={{ fontSize: 11, color: '#F44336' }}>
+                                                        • {device.device_id}
+                                                    </ThemedText>
+                                                </View>
+                                            ))
+                                        }
+                                    </View>
+                                )}
                             </KPICard>
                         </View>
 

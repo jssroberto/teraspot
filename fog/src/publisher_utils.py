@@ -13,7 +13,7 @@ from awscrt import mqtt
 logger = logging.getLogger(__name__)
 
 
-def generate_mocked_spaces(count=30):
+def generate_mocked_spaces(count=30, prefix="A"):
     """Generate mocked parking spaces with realistic confidence distribution."""
     spaces = {}
     occupied_count = 0
@@ -25,7 +25,7 @@ def generate_mocked_spaces(count=30):
     }
 
     for i in range(1, count + 1):
-        space_id = f"A-{i:02d}"
+        space_id = f"{prefix}-{i:02d}"
         is_occupied = random.random() < 0.6
 
         rand = random.random()

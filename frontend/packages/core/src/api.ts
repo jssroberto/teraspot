@@ -216,11 +216,18 @@ export interface LowConfidenceRateKPI {
   status: "GOOD" | "ACCEPTABLE" | "POOR" | "NO_DATA";
 }
 
+export interface DeviceStatus {
+  device_id: string;
+  status: "active" | "inactive";
+  last_seen: string;
+}
+
 export interface SystemHealthKPI {
   uptime_percentage: number;
   active_devices: number;
   total_devices: number;
   inactive_devices: string[];
+  device_list: DeviceStatus[];
   status: "HEALTHY" | "DEGRADED" | "CRITICAL";
   inactive_threshold_minutes: number;
   timestamp: string;

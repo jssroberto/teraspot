@@ -273,7 +273,8 @@ def process_stream_records(records):
                     "space_id": space_id,
                     "status": new_image.get('status', {}).get('S'),
                     "confidence": confidence,
-                    "timestamp": new_image.get('timestamp', {}).get('S')
+                    "timestamp": new_image.get('timestamp', {}).get('S'),
+                    "is_alive": new_image.get('is_alive', {}).get('BOOL', True)
                 }
             }
             notify_clients(update_msg)
