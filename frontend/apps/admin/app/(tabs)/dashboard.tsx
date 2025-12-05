@@ -1,22 +1,22 @@
-import { ThemedText } from "@/components/themed-text";
-import { ThemedView } from "@/components/themed-view";
 import { KPICard } from "@/components/kpi-card";
 import { OccupancyGauge } from "@/components/occupancy-gauge";
 import { OccupancyTrendChart } from "@/components/occupancy-trend-chart";
 import { PeakHoursChart } from "@/components/peak-hours-chart";
-import { getKPIData, KPIResponse, getRecentAlerts } from "@repo/core";
-import React, { useEffect, useState } from "react";
+import { ThemedText } from "@/components/themed-text";
+import { ThemedView } from "@/components/themed-view";
+import { useAlertSettings } from "@/hooks/use-alert-settings";
+import { KPIResponse, getKPIData, getRecentAlerts } from "@repo/core";
+import { signOut } from "aws-amplify/auth";
+import React, { useEffect, useRef, useState } from "react";
 import {
   Alert,
   RefreshControl,
   ScrollView,
   StyleSheet,
+  TouchableOpacity,
   View,
   useWindowDimensions,
-  Platform,
-  TouchableOpacity,
 } from "react-native";
-import { signOut } from "aws-amplify/auth";
 
 export default function DashboardScreen() {
   const [kpiData, setKpiData] = useState<KPIResponse | null>(null);
@@ -24,6 +24,13 @@ export default function DashboardScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
   const { width: windowWidth } = useWindowDimensions();
+  const { settings } = useAlertSettings();
+  const settingsRef = useRef(settings);
+
+  // Update ref when settings change to access latest value in WS callback
+  useEffect(() => {
+    settingsRef.current = settings;
+  }, [settings]);
 
   // Determine grid columns based on screen width
   const getGridColumns = () => {
@@ -88,18 +95,22 @@ export default function DashboardScreen() {
             }
 
             if (message.type === "INACTIVE_SENSOR") {
-              Alert.alert(
-                "⚠️ Sensor Inactivo",
-                message.message ||
-                  `Dispositivo ${message.device_id} sin respuesta`,
-                [{ text: "OK" }]
-              );
+              if (settingsRef.current.channels.app) {
+                Alert.alert(
+                  "⚠️ Sensor Inactivo",
+                  message.message ||
+                    `Dispositivo ${message.device_id} sin respuesta`,
+                  [{ text: "OK" }]
+                );
+              }
             } else if (message.type === "HIGH_OCCUPANCY") {
-              Alert.alert(
-                "🚨 Alta Ocupación",
-                `Ocupación al ${message.occupancy_percent.toFixed(1)}%`,
-                [{ text: "Ver Detalles" }, { text: "Cerrar" }]
-              );
+              if (settingsRef.current.channels.app) {
+                Alert.alert(
+                  "🚨 Alta Ocupación",
+                  `Ocupación al ${message.occupancy_percent.toFixed(1)}%`,
+                  [{ text: "Ver Detalles" }, { text: "Cerrar" }]
+                );
+              }
             }
           } catch (e) {
             console.error("Error parsing WS message", e);

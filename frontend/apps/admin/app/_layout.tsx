@@ -1,18 +1,20 @@
-import 'react-native-get-random-values';
-import 'react-native-url-polyfill/auto';
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { cognitoUserPoolsTokenProvider } from "aws-amplify/auth/cognito";
+import "react-native-get-random-values";
+import "react-native-url-polyfill/auto";
 
 // Configure Amplify Storage
 cognitoUserPoolsTokenProvider.setKeyValueStorage(AsyncStorage);
 
+import { WebSidebar } from "@/components/WebSidebar";
+import { WebNavBar } from "@/components/web-navbar";
+import "@aws-amplify/react-native"; // Essential for Amplify v6 on RN
 import {
   DarkTheme,
   DefaultTheme,
   ThemeProvider,
 } from "@react-navigation/native";
 import { Amplify } from "aws-amplify";
-import "@aws-amplify/react-native"; // Essential for Amplify v6 on RN
 import { getCurrentUser } from "aws-amplify/auth";
 import { Hub } from "aws-amplify/utils";
 import { Stack, useRouter, useSegments } from "expo-router";
@@ -20,7 +22,6 @@ import { StatusBar } from "expo-status-bar";
 import { useEffect, useState } from "react";
 import { View, useWindowDimensions } from "react-native";
 import "react-native-reanimated";
-import { WebSidebar } from "@/components/WebSidebar";
 
 import { useColorScheme } from "@/hooks/use-color-scheme";
 
@@ -76,7 +77,11 @@ export default function RootLayout() {
 
   // Protect routes
   useEffect(() => {
-    console.log("Protection check:", { isLoaded, user: !!user, segment: segments[0] });
+    console.log("Protection check:", {
+      isLoaded,
+      user: !!user,
+      segment: segments[0],
+    });
     if (!isLoaded) return;
 
     const inLoginGroup = (segments[0] as string) === "login";
@@ -100,6 +105,7 @@ export default function RootLayout() {
       <View style={{ flex: 1, flexDirection: "row" }}>
         {isLargeScreen && user && <WebSidebar />}
         <View style={{ flex: 1 }}>
+          {!isLargeScreen && user && <WebNavBar />}
           <Stack>
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
             <Stack.Screen name="login" options={{ headerShown: false }} />
