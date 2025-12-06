@@ -9,14 +9,15 @@ left to right direction
 actor Admin as Admin
 actor "End User" as User
 
-package "Frontend & Configuration UI" {
-component "ROI Config UI\n(Static Web on S3)" as ROI_UI
-component "Parking Status Web App\n(Static Web on S3)" as WebApp_UI
+package "Frontend" {
+component "Admin Dashboard\n(Analytics & Config)" as Admin_UI
+component "Public Web App\n(Parking Status)" as WebApp_UI
 component "Amazon Cognito\n(User Pool)" as Cognito_UP
 }
 
-package "Backend API Gateway" {
-component "API Gateway\nREST (HTTPS) & WebSocket (WSS)" as APIGW
+package "API Gateways" {
+component "REST API Gateway\n(HTTPS)" as APIGW_REST
+component "WebSocket API Gateway\n(WSS)" as APIGW_WS
 component "Cognito Authorizer" as APIGW_Authorizer
 component "IAM Authorizer\n(Pod/EC2 access)" as APIGW_IAM_Auth
 }
@@ -26,6 +27,10 @@ component "Lambda: Save ROI Config" as Lambda_Config
 component "Lambda: Ingest Status" as Lambda_Ingest
 component "Lambda: Read Status" as Lambda_Read
 component "Lambda: Stream Analytics & Notifier" as Lambda_Analytics
+component "Lambda: KPI Monitor" as Lambda_KPIMonitor
+component "Lambda: Device Command" as Lambda_DeviceCommand
+component "Lambda: WS Connect" as Lambda_WS_Connect
+component "Lambda: WS Disconnect" as Lambda_WS_Disconnect
 }
 
 package "Data Stores & Observability" {
@@ -40,6 +45,11 @@ package "Messaging & Error Handling" {
 component "SNS Topic\n(Admin Notifications)" as SNS
 component "SQS Dead-Letter Queue\n(Failed Ingests)" as SQS_DLQ
 component "AWS IoT Core\n(MQTT Broker)" as IoTCore
+component "Amazon EventBridge\n(Scheduler)" as EventBridge
+}
+
+package "Artifacts" {
+component "Amazon ECR\n(Docker Images)" as ECR
 }
 
 package "AI Compute Node (EC2)" {
@@ -49,28 +59,36 @@ component "Video Streams (4-6 cams)\n(Source)" as Camera_Stream
 }
 
 ' === Frontend & Auth ===
-Admin --> ROI_UI : Uses
-User --> Cognito_UP : 1) Authenticate
-Cognito_UP --> User : 2) JWT
-User --> WebApp_UI : 3) Open App (with JWT)
-WebApp_UI --> APIGW : 4) Open WSS Connection
-WebApp_UI --> APIGW : 5) GET /spaces (with JWT)
-APIGW --> APIGW_Authorizer : Validate JWT
-APIGW_Authorizer --> Lambda_Read : Authorize invoke
-APIGW --> Lambda_Read : /spaces
-Lambda_Read --> DDB : Read items
-DDB --> Lambda_Read : Data
-Lambda_Read --> APIGW : JSON
-APIGW --> WebApp_UI : Initial data
-APIGW --> WebApp_UI : Push real-time updates (WSS)
+Admin --> Cognito_UP : 1) Authenticate
+Cognito_UP --> Admin : 2) JWT (for Admin Ops)
+Admin --> Admin_UI : 3) Uses Dashboard
+User --> WebApp_UI : 4) Opens Public App (No Auth)
 
-' === Config flow ===
-Admin --> ROI_UI
-ROI_UI --> APIGW : POST /config (HTTPS)
-APIGW --> Lambda_Config : /config
+' --- REST Flows ---
+WebApp_UI --> APIGW_REST : GET /spaces
+APIGW_REST --> APIGW_Authorizer : Validate JWT
+APIGW_Authorizer --> Lambda_Read : Authorize
+APIGW_REST --> Lambda_Read : Invoke
+Lambda_Read --> DDB : Read items
+Lambda_Read --> APIGW_REST : JSON
+APIGW_REST --> WebApp_UI : Response
+
+' --- WebSocket Flows ---
+WebApp_UI --> APIGW_WS : Connect (Public)
+Admin_UI --> APIGW_WS : Connect (Admin Events)
+APIGW_WS --> Lambda_WS_Connect : $connect
+Lambda_WS_Connect --> DDB : Store CID
+WebApp_UI --> APIGW_WS : Disconnect
+APIGW_WS --> Lambda_WS_Disconnect : $disconnect
+Lambda_WS_Disconnect --> DDB : Remove CID
+
+' === Admin / Config Flow ===
+Admin_UI --> APIGW_REST : POST /config
+APIGW_REST --> Lambda_Config : /config
 Lambda_Config --> S3 : Write config.json
 
 ' === AI Node & Ingest ===
+ECR ..> Containers : Pull Image
 Camera_Stream --> Containers : Provide video
 Containers --> S3 : Read config.json (AWS SDK)
 EC2 --> APIGW_IAM_Auth : IAM Auth for API access
@@ -87,9 +105,21 @@ CloudWatch --> SNS : Alarm -> Notification
 ' === Streams, Analytics, Alerts ===
 DDB --> DDB_Stream : Change events
 DDB_Stream --> Lambda_Analytics : Trigger
+EventBridge --> Lambda_Analytics : Trigger (Every 5m\nHealth Check)
 Lambda_Analytics --> Timestream : Write historical data
 Lambda_Analytics --> SNS : Publish alerts
-Lambda_Analytics --> APIGW : Send realtime update (WSS)
+Lambda_Analytics --> APIGW_WS : Push Updates to Clients
+
+' === KPI & Commands ===
+Admin_UI --> APIGW_REST : GET /kpi
+APIGW_REST --> Lambda_KPIMonitor : /kpi
+Lambda_KPIMonitor --> DDB : Read aggregated data
+Lambda_KPIMonitor --> Timestream : Read historical metrics
+
+Admin_UI --> APIGW_REST : POST /command
+APIGW_REST --> Lambda_DeviceCommand : /command
+Lambda_DeviceCommand --> IoTCore : Publish command (MQTT)
+IoTCore --> Containers : Receive command
 
 ' === Admin Notification ===
 SNS --> Admin : Notify
@@ -331,6 +361,7 @@ package "Databases & Observability" as Pkg_Data {
   database "Amazon Timestream" as timestream
   rectangle "Amazon CloudWatch" as cloudwatch
   database "Amazon S3\n- Website\n- ROI Configs" as s3
+  rectangle "Amazon ECR\n(Docker Images)" as ecr
 }
 
 }
@@ -353,6 +384,7 @@ Camera --> Container1 : "Video Stream [RTSP/HTTP]"
 ' EC2 Container -> AWS Services
 Container1 --> iot_core : "Publish Status [MQTT]"
 Container1 --> s3 : "Read Config [AWS SDK]"
+Docker ..> ecr : "Pulls Image"
 Container1 --> cloudwatch : "Logs"
 
 ' Internal AWS Service Integrations

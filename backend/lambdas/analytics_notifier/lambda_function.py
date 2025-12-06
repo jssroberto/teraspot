@@ -229,7 +229,7 @@ def get_current_occupancy():
 
 
 def check_inactive_sensors():
-    """Revisa sensores que no han reportado en > 5 minutos"""
+    """Revisa sensores que no han reportado en > 15 minutos"""
     logger.info(" Running Health Check...")
     try:
         response = current_table.scan(

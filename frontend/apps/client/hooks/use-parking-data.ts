@@ -96,22 +96,33 @@ export function useParkingData() {
   // 2. Load ROI when Device Changes
   useEffect(() => {
     if (!selectedDevice) return;
+    let active = true;
 
     const loadRoi = async () => {
       try {
         setLoadingConfig(true);
         console.log(`Loading config for ${selectedDevice}...`);
         const spaces = await getRoiConfig(selectedDevice);
-        setPolygons(spaces);
+        if (active) {
+          setPolygons(spaces);
+        }
       } catch (e) {
-        console.error("ROI Load failed", e);
-        setPolygons([]);
+        if (active) {
+          console.error("ROI Load failed", e);
+          setPolygons([]);
+        }
       } finally {
-        setLoadingConfig(false);
+        if (active) {
+          setLoadingConfig(false);
+        }
       }
     };
 
     loadRoi();
+
+    return () => {
+      active = false;
+    };
   }, [selectedDevice]);
 
   const handleFacilitySelect = useCallback(
