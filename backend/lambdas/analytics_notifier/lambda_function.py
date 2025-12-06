@@ -239,7 +239,7 @@ def check_inactive_sensors():
 
         now = datetime.now(timezone.utc)
         config = get_alert_config()
-        inactive_min = config.get("inactive_timeout_minutes", 5)
+        inactive_min = config.get("inactive_timeout_minutes", 15)
         threshold = timedelta(minutes=inactive_min)
         inactive_devices = set()
 

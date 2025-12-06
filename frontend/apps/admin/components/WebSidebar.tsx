@@ -54,7 +54,7 @@ export function WebSidebar() {
   };
 
   const menuItems = [
-    { name: "Dashboard", path: "/dashboard", icon: "chart.bar.fill" },
+    { name: "Dashboard", path: "/", icon: "chart.bar.fill" },
     { name: "Cameras", path: "/cameras", icon: "video.fill" },
     { name: "Alerts", path: "/alerts", icon: "bell.fill" },
     {
