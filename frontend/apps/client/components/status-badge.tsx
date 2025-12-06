@@ -3,125 +3,132 @@
  * Shows parking space status with smooth animations
  */
 
-import React, { useEffect } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { BorderRadius, Colors, Shadows, Spacing } from "@/constants/theme";
+import { useColorScheme } from "@/hooks/use-color-scheme";
+import { LinearGradient } from "expo-linear-gradient";
+import React, { useEffect } from "react";
+import { StyleSheet } from "react-native";
 import Animated, {
-    useSharedValue,
-    useAnimatedStyle,
-    withRepeat,
-    withSequence,
-    withTiming,
-    Easing,
-} from 'react-native-reanimated';
-import { ThemedText } from './themed-text';
-import { Colors, BorderRadius, Spacing, Shadows } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+  Easing,
+  useAnimatedStyle,
+  useSharedValue,
+  withSequence,
+  withTiming,
+} from "react-native-reanimated";
+import { ThemedText } from "./themed-text";
 
 export type StatusBadgeProps = {
-    status: 'vacant' | 'occupied' | 'unknown';
-    label: string;
-    size?: 'small' | 'medium' | 'large';
-    animated?: boolean;
+  status: "vacant" | "occupied" | "unknown";
+  label: string;
+  size?: "small" | "medium" | "large";
+  animated?: boolean;
 };
 
 export function StatusBadge({
-    status,
-    label,
-    size = 'medium',
-    animated = true,
+  status,
+  label,
+  size = "medium",
+  animated = true,
 }: StatusBadgeProps) {
-    const colorScheme = useColorScheme();
-    const colors = Colors[colorScheme ?? 'light'];
-    const scale = useSharedValue(1);
+  const colorScheme = useColorScheme();
+  const colors = Colors[colorScheme ?? "light"];
+  const scale = useSharedValue(1);
 
-    // Pulse animation for status changes
-    useEffect(() => {
-        if (animated && status !== 'unknown') {
-            scale.value = withSequence(
-                withTiming(1.1, { duration: 200, easing: Easing.out(Easing.ease) }),
-                withTiming(1, { duration: 200, easing: Easing.in(Easing.ease) })
-            );
-        }
-    }, [status, animated]);
+  // Pulse animation for status changes
+  useEffect(() => {
+    if (animated && status !== "unknown") {
+      scale.value = withSequence(
+        withTiming(1.1, { duration: 200, easing: Easing.out(Easing.ease) }),
+        withTiming(1, { duration: 200, easing: Easing.in(Easing.ease) })
+      );
+    }
+  }, [status, animated]);
 
-    const animatedStyle = useAnimatedStyle(() => ({
-        transform: [{ scale: scale.value }],
-    }));
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
 
-    const getBackgroundColor = () => {
-        switch (status) {
-            case 'vacant':
-                return colors.success;
-            case 'occupied':
-                return colors.error;
-            default:
-                return colors.textSecondary;
-        }
-    };
+  const getGradientColors = () => {
+    switch (status) {
+      case "vacant":
+        return [
+          colors.successGradientStart,
+          colors.successGradientEnd,
+        ] as const;
+      case "occupied":
+        return [colors.errorGradientStart, colors.errorGradientEnd] as const;
+      default:
+        return [colors.textSecondary, "#888888"] as const;
+    }
+  };
 
-    const getSizeStyles = () => {
-        switch (size) {
-            case 'small':
-                return {
-                    paddingHorizontal: Spacing.sm,
-                    paddingVertical: Spacing.xs,
-                    fontSize: 10,
-                };
-            case 'large':
-                return {
-                    paddingHorizontal: Spacing.xl,
-                    paddingVertical: Spacing.md,
-                    fontSize: 16,
-                };
-            default:
-                return {
-                    paddingHorizontal: Spacing.md,
-                    paddingVertical: Spacing.sm,
-                    fontSize: 12,
-                };
-        }
-    };
+  const getSizeStyles = () => {
+    switch (size) {
+      case "small":
+        return {
+          paddingHorizontal: Spacing.sm,
+          paddingVertical: Spacing.xs,
+          fontSize: 10,
+        };
+      case "large":
+        return {
+          paddingHorizontal: Spacing.xl,
+          paddingVertical: Spacing.md,
+          fontSize: 16,
+        };
+      default:
+        return {
+          paddingHorizontal: Spacing.md,
+          paddingVertical: Spacing.sm,
+          fontSize: 12,
+        };
+    }
+  };
 
-    const sizeStyles = getSizeStyles();
+  const sizeStyles = getSizeStyles();
+  const gradientColors = getGradientColors();
 
-    return (
-        <Animated.View style={[animatedStyle]}>
-            <View
-                style={[
-                    styles.badge,
-                    {
-                        backgroundColor: getBackgroundColor(),
-                        paddingHorizontal: sizeStyles.paddingHorizontal,
-                        paddingVertical: sizeStyles.paddingVertical,
-                    },
-                    Shadows.sm,
-                ]}
-            >
-                <ThemedText
-                    style={[
-                        styles.label,
-                        {
-                            fontSize: sizeStyles.fontSize,
-                            color: '#ffffff',
-                        },
-                    ]}
-                >
-                    {label}
-                </ThemedText>
-            </View>
-        </Animated.View>
-    );
+  return (
+    <Animated.View
+      style={[animatedStyle, Shadows.md, { shadowColor: gradientColors[0] }]}
+    >
+      <LinearGradient
+        colors={gradientColors}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={[
+          styles.badge,
+          {
+            paddingHorizontal: sizeStyles.paddingHorizontal,
+            paddingVertical: sizeStyles.paddingVertical,
+          },
+        ]}
+      >
+        <ThemedText
+          style={[
+            styles.label,
+            {
+              fontSize: sizeStyles.fontSize,
+              color: "#ffffff",
+            },
+          ]}
+        >
+          {label}
+        </ThemedText>
+      </LinearGradient>
+    </Animated.View>
+  );
 }
 
 const styles = StyleSheet.create({
-    badge: {
-        borderRadius: BorderRadius.md,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    label: {
-        fontWeight: 'bold',
-        textTransform: 'uppercase',
-        letterSpacing: 0.5,
-    },
+  badge: {
+    borderRadius: BorderRadius.md,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  label: {
+    fontWeight: "bold",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
 });

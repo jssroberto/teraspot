@@ -1,20 +1,32 @@
 import { ThemedText } from "@/components/themed-text";
-import { ThemedView } from "@/components/themed-view";
-import { useParkingData } from "@/hooks/use-parking-data";
-import { useParkingWebSocket } from "@/hooks/use-parking-web-socket";
+import { LinearGradient } from "expo-linear-gradient";
 import React, { useCallback, useState } from "react";
 import {
   ActivityIndicator,
-  Platform,
+  Dimensions,
   ScrollView,
   StatusBar,
   StyleSheet,
   TouchableOpacity,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Polygon, Text as SvgText } from "react-native-svg";
 
+import { GlassView } from "@/components/ui/glass-view";
+import { GradientButton } from "@/components/ui/gradient-button";
+import { Colors } from "@/constants/theme";
+import { useColorScheme } from "@/hooks/use-color-scheme";
+import { useParkingData } from "@/hooks/use-parking-data";
+import { useParkingWebSocket } from "@/hooks/use-parking-web-socket";
+
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
+
 export default function HomeScreen() {
+  const insets = useSafeAreaInsets();
+  const colorScheme = useColorScheme();
+  const colors = Colors[colorScheme ?? "light"];
+
   const {
     facilities,
     devicesByFacility,
@@ -45,7 +57,6 @@ export default function HomeScreen() {
   const [viewMode, setViewMode] = useState<"map" | "grid">("map");
 
   const ASPECT_RATIO = 16 / 9;
-  const HEADER_HEIGHT = Platform.OS === "ios" ? 50 : 20;
 
   // UI Helpers
   const handleLayout = (event: any) => {
@@ -101,9 +112,9 @@ export default function HomeScreen() {
 
   const getStatusColor = (spaceId: string) => {
     const status = statuses[spaceId];
-    if (status === "occupied") return "rgba(255, 68, 68, 0.6)"; // Soft Red
-    if (status === "vacant") return "rgba(0, 200, 83, 0.5)"; // Soft Green
-    return "rgba(128, 128, 128, 0.3)";
+    if (status === "occupied") return "rgba(255, 68, 68, 0.4)"; // Translucent Red
+    if (status === "vacant") return "rgba(0, 200, 83, 0.4)"; // Translucent Green
+    return "rgba(128, 128, 128, 0.2)";
   };
 
   const getStrokeColor = (spaceId: string) => {
@@ -134,9 +145,9 @@ export default function HomeScreen() {
       case "connecting":
         return "Connecting...";
       case "error":
-        return "Connection Error";
+        return "Error";
       case "disconnected":
-        return "Disconnected";
+        return "Offline";
       default:
         return "Offline";
     }
@@ -144,398 +155,331 @@ export default function HomeScreen() {
 
   if (loading && facilities.length === 0) {
     return (
-      <ThemedView style={[styles.container, styles.center]}>
-        <ActivityIndicator size="large" color="#0a7ea4" />
+      <View style={[styles.container, styles.center]}>
+        <ActivityIndicator size="large" color={colors.tint} />
         <ThemedText style={{ marginTop: 20 }}>
           Finding Parking Spots...
         </ThemedText>
-      </ThemedView>
+      </View>
     );
   }
 
   return (
-    <ThemedView style={styles.container}>
+    <View style={styles.container}>
       <StatusBar barStyle="light-content" />
 
-      <View style={[styles.headerContainer, { paddingTop: HEADER_HEIGHT }]}>
-        <View style={styles.headerRow}>
-          <View>
-            <ThemedText type="title" style={styles.appTitle}>
-              TeraSpot
-            </ThemedText>
-            <ThemedText style={styles.subtitle}>
-              Smart Parking Finder
-            </ThemedText>
-          </View>
-          <View style={styles.wsStatusContainer}>
-            <View
-              style={[styles.wsDot, { backgroundColor: getWsStatusColor() }]}
-            />
-            <ThemedText style={styles.wsText}>{getWsStatusText()}</ThemedText>
-          </View>
-        </View>
-      </View>
+      {/* Background Gradient */}
+      <LinearGradient
+        colors={["#0f0c29", "#302b63", "#24243e"]}
+        style={StyleSheet.absoluteFill}
+      />
 
-      {/* Selectors */}
-      <View style={styles.selectorContainer}>
-        {/* Facility Selector */}
-        <View style={styles.rowLabel}>
-          <ThemedText type="defaultSemiBold">FACILITY</ThemedText>
-        </View>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.scrollRow}
-        >
-          {facilities.map((fac) => (
-            <TouchableOpacity
-              key={fac}
-              style={[
-                styles.pill,
-                selectedFacility === fac && styles.pillActive,
-              ]}
-              onPress={() => handleFacilitySelect(fac)}
-            >
-              <ThemedText
-                style={[
-                  styles.pillText,
-                  selectedFacility === fac && styles.pillTextActive,
-                ]}
-              >
-                {fac.toUpperCase()}
-              </ThemedText>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-
-        {/* Camera/Zone Selector (Only if facility selected) */}
-        {selectedFacility &&
-          devicesByFacility[selectedFacility]?.length > 0 && (
-            <>
-              <View style={[styles.rowLabel, { marginTop: 15 }]}>
-                <ThemedText type="defaultSemiBold">CAMERA / ZONE</ThemedText>
-              </View>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                style={styles.scrollRow}
-              >
-                {devicesByFacility[selectedFacility].map((dev) => (
-                  <TouchableOpacity
-                    key={dev}
-                    style={[
-                      styles.pill,
-                      styles.pillSmall,
-                      selectedDevice === dev && styles.pillActive,
-                    ]}
-                    onPress={() => setSelectedDevice(dev)}
+      {/* Map Layer (Full Screen) */}
+      <View style={StyleSheet.absoluteFill} onLayout={handleLayout}>
+        {viewMode === "map" && polygons.length > 0 ? (
+          <Svg style={StyleSheet.absoluteFill}>
+            {polygons.map((poly, index) => {
+              const labelPos = getLabelPosition(poly.polygon);
+              return (
+                <React.Fragment key={index}>
+                  <Polygon
+                    points={getPointsString(poly.polygon)}
+                    fill={getStatusColor(poly.space_id)}
+                    stroke={getStrokeColor(poly.space_id)}
+                    strokeWidth="2"
+                  />
+                  <SvgText
+                    x={labelPos.x}
+                    y={labelPos.y}
+                    fill="white"
+                    fontSize="12"
+                    fontWeight="bold"
+                    textAnchor="middle"
+                    alignmentBaseline="middle"
+                    stroke="black"
+                    strokeWidth="0.5"
                   >
-                    <ThemedText
-                      style={[
-                        styles.pillText,
-                        styles.pillTextSmall,
-                        selectedDevice === dev && styles.pillTextActive,
-                      ]}
-                    >
-                      {dev}
-                    </ThemedText>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-            </>
-          )}
-      </View>
-
-      {/* Error Banner */}
-      {errorMsg && (
-        <TouchableOpacity onPress={refresh} style={styles.errorBanner}>
-          <ThemedText style={styles.errorText}>
-            ⚠️ {errorMsg} (Tap to Retry)
-          </ThemedText>
-        </TouchableOpacity>
-      )}
-
-      {/* Main Content */}
-      <View style={styles.contentArea}>
-        {/* Toolbar */}
-        <View style={styles.toolbar}>
-          <View style={styles.legend}>
-            <View style={styles.legendItem}>
-              <View style={[styles.dot, { backgroundColor: "#00c853" }]} />
-              <ThemedText style={styles.legendText}>Vacant</ThemedText>
-            </View>
-            <View style={styles.legendItem}>
-              <View style={[styles.dot, { backgroundColor: "#ff4444" }]} />
-              <ThemedText style={styles.legendText}>Occupied</ThemedText>
-            </View>
+                    {poly.space_id.replace("space-", "")}
+                  </SvgText>
+                </React.Fragment>
+              );
+            })}
+          </Svg>
+        ) : viewMode === "map" && !loadingConfig ? (
+          <View style={styles.center}>
+            <ThemedText style={{ color: "#666" }}>No ROI Configured</ThemedText>
           </View>
-
-          <TouchableOpacity
-            style={styles.viewToggle}
-            onPress={() => setViewMode(viewMode === "map" ? "grid" : "map")}
+        ) : viewMode === "grid" ? (
+          <ScrollView
+            contentContainerStyle={{
+              paddingTop: insets.top + 140,
+              paddingBottom: 250,
+              paddingHorizontal: 20,
+            }}
           >
-            <ThemedText style={styles.viewToggleText}>
-              {viewMode === "map" ? "GRID VIEW" : "MAP VIEW"}
-            </ThemedText>
-          </TouchableOpacity>
-        </View>
-
-        {/* Map/Grid */}
-        {loadingConfig ? (
-          <View style={[styles.vizContainer, styles.center]}>
-            <ActivityIndicator color="#fff" />
-          </View>
-        ) : viewMode === "map" ? (
-          <View style={styles.vizContainer} onLayout={handleLayout}>
-            {polygons.length > 0 ? (
-              <Svg style={StyleSheet.absoluteFill}>
-                {polygons.map((poly, index) => {
-                  const labelPos = getLabelPosition(poly.polygon);
-                  return (
-                    <React.Fragment key={index}>
-                      <Polygon
-                        points={getPointsString(poly.polygon)}
-                        fill={getStatusColor(poly.space_id)}
-                        stroke={getStrokeColor(poly.space_id)}
-                        strokeWidth="2"
-                      />
-                      <SvgText
-                        x={labelPos.x}
-                        y={labelPos.y}
-                        fill="white"
-                        fontSize="10"
-                        fontWeight="bold"
-                        textAnchor="middle"
-                        alignmentBaseline="middle"
-                        stroke="black"
-                        strokeWidth="0.5"
-                      >
-                        {poly.space_id.replace("space-", "")}
-                      </SvgText>
-                    </React.Fragment>
-                  );
-                })}
-              </Svg>
-            ) : (
-              <View style={styles.center}>
-                <ThemedText style={{ color: "#666" }}>
-                  No ROI Configured
-                </ThemedText>
-              </View>
-            )}
-          </View>
-        ) : (
-          <ScrollView style={styles.gridContainer}>
             <View style={styles.grid}>
               {polygons.map((poly, index) => {
                 const id = poly.space_id.replace("space-", "");
                 const status = statuses[poly.space_id];
                 const isOccupied = status === "occupied";
                 return (
-                  <View
+                  <GlassView
                     key={index}
                     style={[
                       styles.gridItem,
-                      { backgroundColor: isOccupied ? "#ff4444" : "#00c853" },
+                      {
+                        borderColor: isOccupied ? colors.error : colors.success,
+                      },
                     ]}
                   >
                     <ThemedText style={styles.gridId}>{id}</ThemedText>
-                    <ThemedText style={styles.gridStatus}>
+                    <ThemedText
+                      style={[
+                        styles.gridStatus,
+                        { color: isOccupied ? colors.error : colors.success },
+                      ]}
+                    >
                       {isOccupied ? "BUSY" : "FREE"}
                     </ThemedText>
-                  </View>
+                  </GlassView>
                 );
               })}
             </View>
           </ScrollView>
-        )}
+        ) : null}
       </View>
-    </ThemedView>
+
+      {/* Header Layer (Floating Glass) */}
+      <View style={[styles.headerWrapper, { paddingTop: insets.top }]}>
+        <GlassView style={styles.headerGlass}>
+          <View style={styles.headerContent}>
+            <View>
+              <ThemedText type="title" style={styles.appTitle}>
+                TeraSpot
+              </ThemedText>
+              <ThemedText style={styles.subtitle}>
+                Smart Parking Finder
+              </ThemedText>
+            </View>
+            <View style={styles.wsStatusContainer}>
+              <View
+                style={[styles.wsDot, { backgroundColor: getWsStatusColor() }]}
+              />
+              <ThemedText style={styles.wsText}>{getWsStatusText()}</ThemedText>
+            </View>
+          </View>
+        </GlassView>
+      </View>
+
+      {/* Bottom Controls Layer (Floating Glass) */}
+      <View
+        style={[styles.bottomWrapper, { paddingBottom: insets.bottom + 20 }]}
+      >
+        {/* View Toggle (Floating above panel) */}
+        <TouchableOpacity
+          style={styles.viewToggle}
+          onPress={() => setViewMode(viewMode === "map" ? "grid" : "map")}
+          activeOpacity={0.8}
+        >
+          <GlassView style={styles.viewToggleGlass}>
+            <ThemedText style={styles.viewToggleText}>
+              {viewMode === "map" ? "SWITCH TO GRID" : "SWITCH TO MAP"}
+            </ThemedText>
+          </GlassView>
+        </TouchableOpacity>
+
+        <GlassView style={styles.controlsGlass}>
+          {/* Facility Selector */}
+          <View style={styles.section}>
+            <ThemedText style={styles.sectionLabel}>FACILITY</ThemedText>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.scrollContent}
+            >
+              {facilities.map((fac) => (
+                <GradientButton
+                  key={fac}
+                  label={fac.toUpperCase()}
+                  isActive={selectedFacility === fac}
+                  onPress={() => handleFacilitySelect(fac)}
+                  style={{ marginRight: 10 }}
+                />
+              ))}
+            </ScrollView>
+          </View>
+
+          {/* Camera Selector */}
+          {selectedFacility &&
+            devicesByFacility[selectedFacility]?.length > 0 && (
+              <View style={[styles.section, { marginTop: 15 }]}>
+                <ThemedText style={styles.sectionLabel}>
+                  ZONE / CAMERA
+                </ThemedText>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.scrollContent}
+                >
+                  {devicesByFacility[selectedFacility].map((dev) => (
+                    <GradientButton
+                      key={dev}
+                      label={dev}
+                      isActive={selectedDevice === dev}
+                      onPress={() => setSelectedDevice(dev)}
+                      size="small"
+                      style={{ marginRight: 8 }}
+                    />
+                  ))}
+                </ScrollView>
+              </View>
+            )}
+        </GlassView>
+      </View>
+
+      {/* Error Banner */}
+      {errorMsg && (
+        <TouchableOpacity
+          onPress={refresh}
+          style={[styles.errorBanner, { top: insets.top + 100 }]}
+        >
+          <GlassView style={styles.errorGlass}>
+            <ThemedText style={styles.errorText}>⚠️ {errorMsg}</ThemedText>
+          </GlassView>
+        </TouchableOpacity>
+      )}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#121212", // Dark background
+    backgroundColor: "#000",
   },
   center: {
     justifyContent: "center",
     alignItems: "center",
-    flex: 1,
   },
-  headerContainer: {
-    paddingHorizontal: 20,
-    paddingBottom: 15,
-    backgroundColor: "#1e1e1e",
-    borderBottomWidth: 1,
-    borderBottomColor: "#333",
+  headerWrapper: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    paddingHorizontal: 16,
+    paddingBottom: 10,
+    zIndex: 10,
   },
-  headerRow: {
+  headerGlass: {
+    padding: 16,
+    borderRadius: 24,
+  },
+  headerContent: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
   },
   appTitle: {
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: "800",
     color: "#fff",
     letterSpacing: 0.5,
   },
   subtitle: {
-    color: "#aaa",
-    fontSize: 14,
-    marginTop: 2,
+    color: "rgba(255,255,255,0.7)",
+    fontSize: 12,
   },
   wsStatusContainer: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#333",
+    backgroundColor: "rgba(0,0,0,0.4)",
     paddingHorizontal: 10,
-    paddingVertical: 5,
+    paddingVertical: 6,
     borderRadius: 12,
   },
   wsDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
     marginRight: 6,
   },
   wsText: {
     color: "#ccc",
-    fontSize: 12,
-    fontWeight: "600",
+    fontSize: 10,
+    fontWeight: "700",
+    textTransform: "uppercase",
   },
-  selectorContainer: {
-    paddingVertical: 15,
-    paddingHorizontal: 20,
-    backgroundColor: "#181818",
-  },
-  rowLabel: {
-    marginBottom: 8,
-  },
-  scrollRow: {
-    flexDirection: "row",
-  },
-  pill: {
+  bottomWrapper: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
     paddingHorizontal: 16,
+    zIndex: 10,
+  },
+  controlsGlass: {
+    padding: 20,
+    borderRadius: 32,
+  },
+  section: {
+    // marginBottom: 10,
+  },
+  sectionLabel: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: "rgba(255,255,255,0.5)",
+    marginBottom: 8,
+    letterSpacing: 1,
+    marginLeft: 4,
+  },
+  scrollContent: {
+    paddingRight: 20,
+  },
+  viewToggle: {
+    alignSelf: "center",
+    marginBottom: 15,
+  },
+  viewToggleGlass: {
+    paddingHorizontal: 20,
     paddingVertical: 10,
-    backgroundColor: "#333",
-    borderRadius: 12,
-    marginRight: 12,
+    borderRadius: 20,
   },
-  pillActive: {
-    backgroundColor: "#0a7ea4", // Brand Blue
-    shadowColor: "#0a7ea4",
-    shadowOpacity: 0.4,
-    shadowRadius: 5,
-    elevation: 5,
-  },
-  pillText: {
-    color: "#ccc",
-    fontWeight: "600",
-    fontSize: 14,
-  },
-  pillTextActive: {
+  viewToggleText: {
     color: "#fff",
-    fontWeight: "bold",
-  },
-  pillSmall: {
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-  },
-  pillTextSmall: {
     fontSize: 12,
+    fontWeight: "700",
+    letterSpacing: 0.5,
   },
   errorBanner: {
-    backgroundColor: "#3e1b1b",
-    padding: 10,
-    margin: 10,
-    borderRadius: 8,
-    alignItems: "center",
+    position: "absolute",
+    alignSelf: "center",
+    zIndex: 20,
+  },
+  errorGlass: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    backgroundColor: "rgba(255, 68, 68, 0.2)",
+    borderColor: "rgba(255, 68, 68, 0.5)",
   },
   errorText: {
     color: "#ff6b6b",
     fontWeight: "bold",
   },
-  contentArea: {
-    flex: 1,
-    backgroundColor: "#121212",
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    overflow: "hidden",
-    marginTop: 5,
-  },
-  toolbar: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: 20,
-    paddingVertical: 15,
-  },
-  legend: {
-    flexDirection: "row",
-    gap: 15,
-  },
-  legendItem: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  dot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginRight: 6,
-  },
-  legendText: {
-    color: "#aaa",
-    fontSize: 12,
-  },
-  viewToggle: {
-    backgroundColor: "#2a2a2a",
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: "#444",
-  },
-  viewToggleText: {
-    color: "#fff",
-    fontSize: 10,
-    fontWeight: "bold",
-  },
-  vizContainer: {
-    flex: 1,
-    marginHorizontal: 15,
-    marginBottom: 20,
-    backgroundColor: "#1f1f1f",
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: "#333",
-    overflow: "hidden",
-  },
-  gridContainer: {
-    flex: 1,
-    paddingHorizontal: 15,
-  },
   grid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 10,
-    paddingBottom: 40,
+    gap: 8,
     justifyContent: "center",
   },
   gridItem: {
-    width: "30%",
+    width: (SCREEN_WIDTH - 64) / 4,
     aspectRatio: 1,
-    borderRadius: 12,
     justifyContent: "center",
     alignItems: "center",
-    elevation: 2,
+    backgroundColor: "rgba(255,255,255,0.05)",
   },
   gridId: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: "bold",
     color: "#fff",
     marginBottom: 4,
@@ -543,6 +487,5 @@ const styles = StyleSheet.create({
   gridStatus: {
     fontSize: 10,
     fontWeight: "bold",
-    color: "rgba(255,255,255,0.8)",
   },
 });
