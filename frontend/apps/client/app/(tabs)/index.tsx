@@ -1,35 +1,45 @@
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
-import { getParkingStatus, getRoiConfig, RoiSpace } from "@repo/core";
-import React, { useEffect, useState } from "react";
+import { useParkingData } from "@/hooks/use-parking-data";
+import { useParkingWebSocket } from "@/hooks/use-parking-web-socket";
+import React, { useCallback, useState } from "react";
 import {
   ActivityIndicator,
+  Platform,
   ScrollView,
+  StatusBar,
   StyleSheet,
   TouchableOpacity,
   View,
-  StatusBar,
-  Platform,
 } from "react-native";
 import Svg, { Polygon, Text as SvgText } from "react-native-svg";
 
 export default function HomeScreen() {
-  const [polygons, setPolygons] = useState<RoiSpace[]>([]);
-  const [statuses, setStatuses] = useState<Record<string, string>>({});
+  const {
+    facilities,
+    devicesByFacility,
+    selectedFacility,
+    selectedDevice,
+    setSelectedDevice,
+    handleFacilitySelect,
+    polygons,
+    statuses,
+    setStatuses,
+    loading,
+    loadingConfig,
+    errorMsg,
+    refresh,
+  } = useParkingData();
 
-  // Navigation State
-  const [facilities, setFacilities] = useState<string[]>([]);
-  const [devicesByFacility, setDevicesByFacility] = useState<
-    Record<string, string[]>
-  >({});
+  const handleWebSocketUpdate = useCallback(
+    (data: any) => {
+      const { space_id, status } = data;
+      setStatuses((p) => ({ ...p, [space_id]: status }));
+    },
+    [setStatuses]
+  );
 
-  const [selectedFacility, setSelectedFacility] = useState<string | null>(null);
-  const [selectedDevice, setSelectedDevice] = useState<string | null>(null);
-
-  const [loading, setLoading] = useState(true);
-  const [loadingConfig, setLoadingConfig] = useState(false);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [refreshKey, setRefreshKey] = useState(0);
+  const { status: wsStatus } = useParkingWebSocket(handleWebSocketUpdate);
 
   const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
   const [viewMode, setViewMode] = useState<"map" | "grid">("map");
@@ -37,149 +47,7 @@ export default function HomeScreen() {
   const ASPECT_RATIO = 16 / 9;
   const HEADER_HEIGHT = Platform.OS === "ios" ? 50 : 20;
 
-  // 1. Initial Data Load (Facilities & Devices)
-  useEffect(() => {
-    let active = true;
-
-    const init = async () => {
-      try {
-        setLoading(true);
-        setErrorMsg(null);
-
-        console.log("Fetching global status...");
-        const spaces = await getParkingStatus(); // Fetch all data
-
-        if (!active) return;
-
-        // Group by Facility -> Devices
-        const facilityMap: Record<string, Set<string>> = {};
-        const statusMap: Record<string, string> = {};
-
-        spaces.forEach((space: any) => {
-          if (space.space_id && space.status) {
-            statusMap[space.space_id] = space.status;
-          }
-
-          const facId = space.facility_id || "facility-1"; // Default fallbacks
-          const devId = space.device_id; // Assumes backend returns device_id
-
-          if (facId && devId) {
-            if (!facilityMap[facId]) facilityMap[facId] = new Set();
-            facilityMap[facId].add(devId);
-          }
-        });
-
-        const sortedFacilities = Object.keys(facilityMap).sort();
-        const groupedDevices: Record<string, string[]> = {};
-
-        sortedFacilities.forEach((f) => {
-          groupedDevices[f] = Array.from(facilityMap[f]).sort();
-        });
-
-        console.log("Found facilities:", sortedFacilities);
-        console.log("Device Map:", groupedDevices);
-
-        if (sortedFacilities.length > 0) {
-          setFacilities(sortedFacilities);
-          setDevicesByFacility(groupedDevices);
-
-          // Auto-select first facility & device
-          if (!selectedFacility || !facilityMap[selectedFacility]) {
-            const firstFac = sortedFacilities[0];
-            setSelectedFacility(firstFac);
-
-            // Select first device in that facility
-            const firstDev = groupedDevices[firstFac]?.[0];
-            if (firstDev) setSelectedDevice(firstDev);
-          }
-
-          setStatuses(statusMap);
-        } else {
-          setErrorMsg("No active facilities found. Check backend connection.");
-        }
-      } catch (err: any) {
-        console.error("Init failed:", err);
-        setErrorMsg(err.message || "Failed to load system.");
-      } finally {
-        if (active) setLoading(false);
-      }
-    };
-
-    init();
-    return () => {
-      active = false;
-    };
-  }, [refreshKey]);
-
-  // 2. Load ROI when Device Changes
-  useEffect(() => {
-    if (!selectedDevice) return;
-
-    const loadRoi = async () => {
-      try {
-        setLoadingConfig(true);
-        console.log(`Loading config for ${selectedDevice}...`);
-        const spaces = await getRoiConfig(selectedDevice);
-        setPolygons(spaces);
-      } catch (e) {
-        console.error("ROI Load failed", e);
-        setPolygons([]);
-      } finally {
-        setLoadingConfig(false);
-      }
-    };
-
-    loadRoi();
-  }, [selectedDevice]);
-
-  // 3. WebSocket
-  useEffect(() => {
-    const wsUrl =
-      process.env.EXPO_PUBLIC_WEBSOCKET_URL ||
-      "wss://vmdq0zxc18.execute-api.us-east-1.amazonaws.com/dev";
-    if (!wsUrl) return;
-
-    let ws: WebSocket | null = null;
-    let reconnectTimeout: ReturnType<typeof setTimeout>;
-
-    const connect = () => {
-      ws = new WebSocket(wsUrl);
-      ws.onopen = () => console.log("WS Connected");
-      ws.onmessage = (event) => {
-        try {
-          const msg = JSON.parse(event.data);
-          if (msg.type === "UPDATE" && msg.data) {
-            const { space_id, status } = msg.data;
-            setStatuses((p) => ({ ...p, [space_id]: status }));
-          }
-        } catch (e) {
-          /* ignore */
-        }
-      };
-      ws.onclose = () => {
-        console.log("WS Closed, reconnecting...");
-        reconnectTimeout = setTimeout(connect, 3000);
-      };
-      ws.onerror = (e) => console.log("WS Error");
-    };
-    connect();
-    return () => {
-      ws?.close();
-      clearTimeout(reconnectTimeout);
-    };
-  }, []);
-
   // UI Helpers
-  const handleFacilitySelect = (fac: string) => {
-    setSelectedFacility(fac);
-    const devs = devicesByFacility[fac];
-    if (devs && devs.length > 0) {
-      setSelectedDevice(devs[0]); // Auto-select first camera
-    } else {
-      setSelectedDevice(null);
-    }
-  };
-
   const handleLayout = (event: any) => {
     const { width, height } = event.nativeEvent.layout;
     setContainerSize({ width, height });
@@ -245,6 +113,35 @@ export default function HomeScreen() {
     return "#888";
   };
 
+  const getWsStatusColor = () => {
+    switch (wsStatus) {
+      case "connected":
+        return "#00c853";
+      case "connecting":
+        return "#ffb300";
+      case "error":
+      case "disconnected":
+        return "#ff4444";
+      default:
+        return "#888";
+    }
+  };
+
+  const getWsStatusText = () => {
+    switch (wsStatus) {
+      case "connected":
+        return "Live";
+      case "connecting":
+        return "Connecting...";
+      case "error":
+        return "Connection Error";
+      case "disconnected":
+        return "Disconnected";
+      default:
+        return "Offline";
+    }
+  };
+
   if (loading && facilities.length === 0) {
     return (
       <ThemedView style={[styles.container, styles.center]}>
@@ -261,10 +158,22 @@ export default function HomeScreen() {
       <StatusBar barStyle="light-content" />
 
       <View style={[styles.headerContainer, { paddingTop: HEADER_HEIGHT }]}>
-        <ThemedText type="title" style={styles.appTitle}>
-          TeraSpot
-        </ThemedText>
-        <ThemedText style={styles.subtitle}>Smart Parking Finder</ThemedText>
+        <View style={styles.headerRow}>
+          <View>
+            <ThemedText type="title" style={styles.appTitle}>
+              TeraSpot
+            </ThemedText>
+            <ThemedText style={styles.subtitle}>
+              Smart Parking Finder
+            </ThemedText>
+          </View>
+          <View style={styles.wsStatusContainer}>
+            <View
+              style={[styles.wsDot, { backgroundColor: getWsStatusColor() }]}
+            />
+            <ThemedText style={styles.wsText}>{getWsStatusText()}</ThemedText>
+          </View>
+        </View>
       </View>
 
       {/* Selectors */}
@@ -339,10 +248,7 @@ export default function HomeScreen() {
 
       {/* Error Banner */}
       {errorMsg && (
-        <TouchableOpacity
-          onPress={() => setRefreshKey((k) => k + 1)}
-          style={styles.errorBanner}
-        >
+        <TouchableOpacity onPress={refresh} style={styles.errorBanner}>
           <ThemedText style={styles.errorText}>
             ⚠️ {errorMsg} (Tap to Retry)
           </ThemedText>
@@ -465,6 +371,11 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: "#333",
   },
+  headerRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
   appTitle: {
     fontSize: 28,
     fontWeight: "800",
@@ -475,6 +386,25 @@ const styles = StyleSheet.create({
     color: "#aaa",
     fontSize: 14,
     marginTop: 2,
+  },
+  wsStatusContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#333",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 12,
+  },
+  wsDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: 6,
+  },
+  wsText: {
+    color: "#ccc",
+    fontSize: 12,
+    fontWeight: "600",
   },
   selectorContainer: {
     paddingVertical: 15,
