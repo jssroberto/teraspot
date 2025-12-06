@@ -5,7 +5,6 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 import json
 import pytest
-from unittest.mock import MagicMock
 
 from ingest_status import lambda_function
 from ingest_status import persistence

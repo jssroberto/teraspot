@@ -192,8 +192,12 @@ class TestKPILambda:
         assert result["color_code"] == "RED"  # <5 spaces
         assert "ZONE_A" in result["by_zone"]
         assert "ZONE_C" in result["by_zone"]
-        assert result["by_zone"]["ZONE_A"] == 1
-        assert result["by_zone"]["ZONE_C"] == 1
+        assert "ZONE_C" in result["by_zone"]
+
+        by_zone = result["by_zone"]
+        assert isinstance(by_zone, dict)
+        assert by_zone["ZONE_A"] == 1
+        assert by_zone["ZONE_C"] == 1
 
     @patch("lambda_function.current_table")
     def test_get_available_spaces_color_codes(self, mock_table):
@@ -454,36 +458,37 @@ class TestKPILambda:
     @patch("lambda_function.get_current_occupancy_rate")
     def test_lambda_handler_all_kpis(
         self,
-        mock_occupancy,
-        mock_vacant,
-        mock_alert,
-        mock_avg_conf,
-        mock_low_conf,
-        mock_health,
-        mock_duration,
-        mock_peak,
-        mock_trend,
+        mock_get_current_occupancy_rate,
+        mock_get_available_spaces_by_zone,
+        mock_check_critical_capacity_alert,
+        mock_get_average_detection_confidence,
+        mock_get_low_confidence_event_rate,
+        mock_get_system_health_device_uptime,
+        mock_calculate_average_parking_duration,
+        mock_get_peak_occupancy_hours,
+        mock_get_occupancy_trend,
         mock_current_table,
         mock_history_table,
     ):
         """Test: Lambda handler - request all KPIs (dashboard mode)"""
-        # Mock DynamoDB scans
+        # Mock DynamoDB scans to prevent AWS calls
         mock_current_table.scan.return_value = {"Items": []}
         mock_history_table.scan.return_value = {"Items": []}
 
-        # Mock all KPI functions
-        for mock in [
-            mock_occupancy,
-            mock_vacant,
-            mock_alert,
-            mock_avg_conf,
-            mock_low_conf,
-            mock_health,
-            mock_duration,
-            mock_peak,
-            mock_trend,
-        ]:
-            mock.return_value = {"test": "data"}
+        # Mock all KPI functions return values
+        mock_get_current_occupancy_rate.return_value = {"occupancy_rate": 50.0}
+        mock_get_available_spaces_by_zone.return_value = {"total_vacant": 10}
+        mock_check_critical_capacity_alert.return_value = {"alert_active": False}
+        mock_get_average_detection_confidence.return_value = {
+            "average_confidence": 90.0
+        }
+        mock_get_low_confidence_event_rate.return_value = {"low_confidence_rate": 0.0}
+        mock_get_system_health_device_uptime.return_value = {"uptime_percentage": 100.0}
+        mock_calculate_average_parking_duration.return_value = {
+            "average_duration_hours": 1.5
+        }
+        mock_get_peak_occupancy_hours.return_value = {"peak_hours": []}
+        mock_get_occupancy_trend.return_value = {"trend_data": []}
 
         event = {"kpi": "all"}
 

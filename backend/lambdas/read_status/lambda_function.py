@@ -3,7 +3,7 @@ import logging
 import os
 import boto3
 from decimal import Decimal
-from typing import Dict, Any, List
+from typing import Dict, Any
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)

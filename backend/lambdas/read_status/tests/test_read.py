@@ -2,12 +2,8 @@ import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 import json
-import pytest
 from decimal import Decimal
 from lambda_function import (
-    get_all_spaces,
-    get_space_by_id,
-    get_occupancy_statistics,
     decimal_to_float,
     lambda_handler
 )
