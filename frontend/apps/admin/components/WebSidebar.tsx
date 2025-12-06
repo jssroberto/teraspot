@@ -1,6 +1,7 @@
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { Colors } from "@/constants/theme";
 import { getParkingStatus } from "@repo/core";
+import { signOut } from "aws-amplify/auth";
 import { Link, usePathname } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
@@ -152,6 +153,17 @@ export function WebSidebar() {
             <Text style={styles.userRole}>Super Admin</Text>
           </View>
         </View>
+        <TouchableOpacity
+          onPress={() => signOut()}
+          style={styles.logoutButton}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
+          <IconSymbol
+            name="rectangle.portrait.and.arrow.right"
+            size={20}
+            color="#666"
+          />
+        </TouchableOpacity>
       </View>
     </View>
   );
@@ -287,10 +299,20 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: "#2A2A2A",
     backgroundColor: "#161616",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
   },
   userProfile: {
     flexDirection: "row",
     alignItems: "center",
+  },
+  logoutButton: {
+    padding: 8,
+    borderRadius: 8,
+    backgroundColor: "#1E1E1E",
+    borderWidth: 1,
+    borderColor: "#333",
   },
   avatar: {
     width: 36,

@@ -5,7 +5,6 @@ import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   StyleSheet,
   TextInput,
   TouchableOpacity,
@@ -20,11 +19,13 @@ export default function LoginScreen() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const router = useRouter();
 
   const handleLogin = async () => {
+    setErrorMessage(null);
     if (!email || !password) {
-      Alert.alert("Error", "Please enter both email and password");
+      setErrorMessage("Please enter both email and password");
       return;
     }
 
@@ -39,22 +40,21 @@ export default function LoginScreen() {
         router.replace("/(tabs)");
       } else {
         if (nextStep.signInStep === "CONFIRM_SIGN_UP") {
-          Alert.alert("Error", "User is not confirmed");
+          setErrorMessage("User is not confirmed");
         } else if (
           nextStep.signInStep === "CONFIRM_SIGN_IN_WITH_NEW_PASSWORD_REQUIRED"
         ) {
-          Alert.alert(
-            "Notice",
+          setErrorMessage(
             "New password required. Please contact admin (Not implemented in this demo)."
           );
         } else {
-          Alert.alert("Notice", `Next step: ${nextStep.signInStep}`);
+          setErrorMessage(`Next step: ${nextStep.signInStep}`);
         }
       }
     } catch (error: any) {
       console.error("Login Error Full Object:", JSON.stringify(error, null, 2));
       console.error("Login Error Message:", error.message);
-      Alert.alert("Login Failed", error.message || "An error occurred");
+      setErrorMessage(error.message || "An error occurred during sign in");
     } finally {
       setLoading(false);
     }
@@ -69,6 +69,11 @@ export default function LoginScreen() {
         <ThemedText style={styles.subtitle}>Sign in to continue</ThemedText>
 
         <View style={styles.form}>
+          {errorMessage && (
+            <View style={styles.errorContainer}>
+              <ThemedText style={styles.errorText}>{errorMessage}</ThemedText>
+            </View>
+          )}
           <ThemedText style={styles.label}>Email</ThemedText>
           <TextInput
             style={styles.input}
@@ -154,5 +159,18 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontWeight: "bold",
     fontSize: 16,
+  },
+  errorContainer: {
+    backgroundColor: "rgba(255, 59, 48, 0.1)",
+    padding: 10,
+    borderRadius: 8,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: "rgba(255, 59, 48, 0.3)",
+  },
+  errorText: {
+    color: "#FF3B30",
+    fontSize: 14,
+    textAlign: "center",
   },
 });

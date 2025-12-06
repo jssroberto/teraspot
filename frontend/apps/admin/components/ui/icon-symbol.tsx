@@ -26,6 +26,12 @@ const MAPPING = {
   "chart.pie.fill": "pie-chart",
   "video.fill": "videocam",
   "chart.line.uptrend.xyaxis": "show-chart",
+  "rectangle.portrait.and.arrow.right": "logout",
+  "bolt.fill": "bolt",
+  "chevron.up": "expand-less",
+  "chevron.down": "expand-more",
+  checkmark: "check",
+  "person.circle.fill": "account-circle",
 } as IconMapping;
 
 /**

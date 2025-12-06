@@ -6,7 +6,6 @@ import { PeakHoursChart } from "@/components/peak-hours-chart";
 import { ThemedText } from "@/components/themed-text";
 import { useAlertSettings } from "@/hooks/use-alert-settings";
 import { KPIResponse, getKPIData, getRecentAlerts } from "@repo/core";
-import { signOut } from "aws-amplify/auth";
 import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -283,26 +282,6 @@ export default function DashboardScreen() {
           >
             {systemStatusText}
           </ThemedText>
-          <TouchableOpacity
-            onPress={async () => {
-              try {
-                await signOut();
-              } catch (e) {
-                console.error("Error signing out", e);
-              }
-            }}
-            style={{
-              padding: 8,
-              backgroundColor: "#ff4444",
-              borderRadius: 8,
-            }}
-          >
-            <ThemedText
-              style={{ color: "white", fontSize: 12, fontWeight: "bold" }}
-            >
-              LOGOUT
-            </ThemedText>
-          </TouchableOpacity>
         </View>
       }
     >
