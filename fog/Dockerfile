@@ -1,3 +1,4 @@
+# Stage 1: Build stage
 FROM python:3.12-slim AS build
 
 RUN apt-get update && apt-get install -y \
@@ -6,12 +7,14 @@ RUN apt-get update && apt-get install -y \
     git \
     && rm -rf /var/lib/apt/lists/*
 
+COPY --from=ghcr.io/astral-sh/uv:0.5.21 /uv /uvx /bin/
+
 WORKDIR /app
 
-COPY requirements.txt /app/requirements.txt
+COPY pyproject.toml /app/pyproject.toml
 
-RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install -r /app/requirements.txt
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv pip install --system -r /app/pyproject.toml
 
 COPY . /app/
 
@@ -40,3 +43,4 @@ RUN chown -R appuser:appuser /app
 USER appuser
 
 CMD ["python", "src/edge_publisher.py", "--use-yolo", "--video", "assets/parking_lot.mp4", "--frame-skip", "5", "--iterations", "-1", "--interval", "5", "--roi-config", "config/roi_sample.json"]
+
