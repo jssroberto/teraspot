@@ -1,0 +1,15 @@
+[project]
+name = "teraspot-analytics-notifier"
+version = "0.1.0"
+description = "TeraSpot Analytics Notifier Lambda"
+requires-python = ">=3.12"
+dependencies = [
+    "teraspot-shared"
+]
+
+[tool.uv.sources]
+teraspot-shared = { workspace = true }
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

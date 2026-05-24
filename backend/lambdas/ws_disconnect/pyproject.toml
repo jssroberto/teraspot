@@ -1,0 +1,15 @@
+[project]
+name = "teraspot-ws-disconnect"
+version = "0.1.0"
+description = "TeraSpot WebSocket Disconnect Lambda"
+requires-python = ">=3.12"
+dependencies = [
+    "teraspot-shared"
+]
+
+[tool.uv.sources]
+teraspot-shared = { workspace = true }
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
