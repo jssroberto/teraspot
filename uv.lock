@@ -1713,7 +1713,7 @@ wheels = [
 [[package]]
 name = "teraspot-analytics-notifier"
 version = "0.1.0"
-source = { editable = "backend/lambdas/analytics_notifier" }
+source = { virtual = "backend/lambdas/analytics_notifier" }
 dependencies = [
     { name = "teraspot-shared" },
 ]
@@ -1724,7 +1724,7 @@ requires-dist = [{ name = "teraspot-shared", editable = "backend/shared" }]
 [[package]]
 name = "teraspot-config-saver"
 version = "0.1.0"
-source = { editable = "backend/lambdas/config_saver" }
+source = { virtual = "backend/lambdas/config_saver" }
 dependencies = [
     { name = "teraspot-shared" },
 ]
@@ -1735,7 +1735,7 @@ requires-dist = [{ name = "teraspot-shared", editable = "backend/shared" }]
 [[package]]
 name = "teraspot-device-command"
 version = "0.1.0"
-source = { editable = "backend/lambdas/device_command" }
+source = { virtual = "backend/lambdas/device_command" }
 dependencies = [
     { name = "teraspot-shared" },
 ]
@@ -1746,7 +1746,7 @@ requires-dist = [{ name = "teraspot-shared", editable = "backend/shared" }]
 [[package]]
 name = "teraspot-fog"
 version = "0.1.0"
-source = { editable = "fog" }
+source = { virtual = "fog" }
 dependencies = [
     { name = "awsiotsdk" },
     { name = "boto3" },
@@ -1783,7 +1783,7 @@ requires-dist = [
 [[package]]
 name = "teraspot-ingest-status"
 version = "0.1.0"
-source = { editable = "backend/lambdas/ingest_status" }
+source = { virtual = "backend/lambdas/ingest_status" }
 dependencies = [
     { name = "teraspot-shared" },
 ]
@@ -1794,7 +1794,7 @@ requires-dist = [{ name = "teraspot-shared", editable = "backend/shared" }]
 [[package]]
 name = "teraspot-kpi-monitor"
 version = "0.1.0"
-source = { editable = "backend/lambdas/kpi_monitor" }
+source = { virtual = "backend/lambdas/kpi_monitor" }
 dependencies = [
     { name = "teraspot-shared" },
 ]
@@ -1805,7 +1805,7 @@ requires-dist = [{ name = "teraspot-shared", editable = "backend/shared" }]
 [[package]]
 name = "teraspot-read-status"
 version = "0.1.0"
-source = { editable = "backend/lambdas/read_status" }
+source = { virtual = "backend/lambdas/read_status" }
 dependencies = [
     { name = "teraspot-shared" },
 ]
@@ -1850,7 +1850,7 @@ dev = [
 [[package]]
 name = "teraspot-ws-connect"
 version = "0.1.0"
-source = { editable = "backend/lambdas/ws_connect" }
+source = { virtual = "backend/lambdas/ws_connect" }
 dependencies = [
     { name = "teraspot-shared" },
 ]
@@ -1861,7 +1861,7 @@ requires-dist = [{ name = "teraspot-shared", editable = "backend/shared" }]
 [[package]]
 name = "teraspot-ws-disconnect"
 version = "0.1.0"
-source = { editable = "backend/lambdas/ws_disconnect" }
+source = { virtual = "backend/lambdas/ws_disconnect" }
 dependencies = [
     { name = "teraspot-shared" },
 ]
