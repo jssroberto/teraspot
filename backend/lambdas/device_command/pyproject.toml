@@ -1,0 +1,14 @@
+[project]
+name = "teraspot-device-command"
+version = "0.1.0"
+description = "TeraSpot Device Command Lambda"
+requires-python = ">=3.12"
+dependencies = [
+    "teraspot-shared"
+]
+
+[tool.uv]
+package = false
+
+[tool.uv.sources]
+teraspot-shared = { workspace = true }

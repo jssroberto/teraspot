@@ -1,0 +1,15 @@
+[project]
+name = "teraspot-shared"
+version = "0.1.0"
+description = "TeraSpot Shared Backend Utilities"
+requires-python = ">=3.12"
+dependencies = [
+    "boto3>=1.26.0"
+]
+
+[tool.setuptools]
+packages = ["utils"]
+
+[build-system]
+requires = ["setuptools>=61.0.0"]
+build-backend = "setuptools.build_meta"

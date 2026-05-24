@@ -1,0 +1,14 @@
+[project]
+name = "teraspot-kpi-monitor"
+version = "0.1.0"
+description = "TeraSpot KPI Monitor Lambda"
+requires-python = ">=3.12"
+dependencies = [
+    "teraspot-shared"
+]
+
+[tool.uv]
+package = false
+
+[tool.uv.sources]
+teraspot-shared = { workspace = true }
