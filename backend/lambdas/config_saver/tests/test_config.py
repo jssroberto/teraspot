@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 import boto3
 import pytest
-from lambda_function import lambda_handler, validate_config
+from config_saver_handler import lambda_handler, validate_config
 from moto import mock_aws
 
 # ============ TESTS WITHOUT MOCK (Validation) ============
@@ -96,7 +96,7 @@ def test_lambda_handler_save(s3_setup):
         },
     }
 
-    with patch("lambda_function.s3_client", s3_setup):
+    with patch("config_saver_handler.s3_client", s3_setup):
         result = lambda_handler(event, None)
 
     assert result["statusCode"] == 200
@@ -156,7 +156,7 @@ def test_lambda_handler_list(s3_setup):
     )
 
     event = {"action": "LIST", "config_type": "zone"}
-    with patch("lambda_function.s3_client", s3_setup):
+    with patch("config_saver_handler.s3_client", s3_setup):
         result = lambda_handler(event, None)
 
     assert result["statusCode"] == 200
@@ -185,7 +185,7 @@ def test_lambda_handler_get(s3_setup):
     )
 
     event = {"action": "GET", "config_id": "roi-f1-zget"}
-    with patch("lambda_function.s3_client", s3_setup):
+    with patch("config_saver_handler.s3_client", s3_setup):
         result = lambda_handler(event, None)
 
     assert result["statusCode"] == 200
