@@ -78,7 +78,7 @@ resource "aws_iam_role_policy" "lambda_policy" {
 # ==============================================================================
 data "archive_file" "lambda_zip" {
   type        = "zip"
-  source_file = "${path.module}/../../backend/lambdas/config_saver/lambda_function.py"
+  source_file = "${path.module}/../../backend/lambdas/config_saver/config_saver_handler.py"
   output_path = "${path.module}/lambda_function.zip"
 }
 
@@ -86,7 +86,7 @@ resource "aws_lambda_function" "config_saver" {
   filename         = data.archive_file.lambda_zip.output_path
   function_name    = var.lambda_function_name
   role             = aws_iam_role.lambda_role.arn
-  handler          = "lambda_function.lambda_handler"
+  handler          = "config_saver_handler.lambda_handler"
   source_code_hash = data.archive_file.lambda_zip.output_base64sha256
   runtime          = "python3.13"
   timeout          = 10
@@ -131,7 +131,7 @@ resource "aws_lambda_function" "kpi_monitor" {
   filename         = data.archive_file.kpi_monitor_zip.output_path
   function_name    = "teraspot-kpi-monitor"
   role             = aws_iam_role.kpi_monitor_role.arn
-  handler          = "lambda_function.lambda_handler"
+  handler          = "kpi_monitor_handler.lambda_handler"
   source_code_hash = data.archive_file.kpi_monitor_zip.output_base64sha256
   runtime          = "python3.12"
   timeout          = 30
@@ -287,7 +287,7 @@ resource "aws_lambda_permission" "apigw_lambda" {
 # ==============================================================================
 data "archive_file" "device_command_zip" {
   type        = "zip"
-  source_file = "${path.module}/../../backend/lambdas/device_command/lambda_function.py"
+  source_file = "${path.module}/../../backend/lambdas/device_command/device_command_handler.py"
   output_path = "${path.module}/device_command.zip"
 }
 
@@ -349,7 +349,7 @@ resource "aws_lambda_function" "device_command" {
   filename         = data.archive_file.device_command_zip.output_path
   function_name    = "teraspot-device-command"
   role             = aws_iam_role.device_command_role.arn
-  handler          = "lambda_function.lambda_handler"
+  handler          = "device_command_handler.lambda_handler"
   source_code_hash = data.archive_file.device_command_zip.output_base64sha256
   runtime          = "python3.12"
   timeout          = 30
@@ -544,7 +544,7 @@ resource "aws_lambda_permission" "apigw_command_lambda" {
 # ==============================================================================
 data "archive_file" "read_status_zip" {
   type        = "zip"
-  source_file = "${path.module}/../../backend/lambdas/read_status/lambda_function.py"
+  source_file = "${path.module}/../../backend/lambdas/read_status/read_status_handler.py"
   output_path = "${path.module}/read_status.zip"
 }
 
@@ -598,7 +598,7 @@ resource "aws_lambda_function" "read_status" {
   filename         = data.archive_file.read_status_zip.output_path
   function_name    = "teraspot-read-status"
   role             = aws_iam_role.read_status_role.arn
-  handler          = "lambda_function.lambda_handler"
+  handler          = "read_status_handler.lambda_handler"
   source_code_hash = data.archive_file.read_status_zip.output_base64sha256
   runtime          = "python3.13"
   timeout          = 10
@@ -711,7 +711,7 @@ resource "aws_lambda_function" "ingest_status" {
   filename         = data.archive_file.ingest_status_zip.output_path
   function_name    = "teraspot-ingest-status"
   role             = aws_iam_role.ingest_status_role.arn
-  handler          = "lambda_function.lambda_handler"
+  handler          = "ingest_status_handler.lambda_handler"
   source_code_hash = data.archive_file.ingest_status_zip.output_base64sha256
   runtime          = "python3.12"
   timeout          = 30
@@ -777,7 +777,7 @@ resource "aws_sns_topic" "alerts_topic" {
 # 3. Analytics Lambda
 data "archive_file" "analytics_zip" {
   type        = "zip"
-  source_file = "${path.module}/../../backend/lambdas/analytics_notifier/lambda_function.py"
+  source_file = "${path.module}/../../backend/lambdas/analytics_notifier/analytics_notifier_handler.py"
   output_path = "${path.module}/analytics_notifier.zip"
 }
 
@@ -868,7 +868,7 @@ resource "aws_lambda_function" "analytics_notifier" {
   filename         = data.archive_file.analytics_zip.output_path
   function_name    = "teraspot-analytics-notifier"
   role             = aws_iam_role.analytics_role.arn
-  handler          = "lambda_function.lambda_handler"
+  handler          = "analytics_notifier_handler.lambda_handler"
   source_code_hash = data.archive_file.analytics_zip.output_base64sha256
   runtime          = "python3.12"
   timeout          = 30
@@ -1028,7 +1028,7 @@ resource "aws_apigatewayv2_api" "websocket_api" {
 # --- Connect Lambda ---
 data "archive_file" "ws_connect_zip" {
   type        = "zip"
-  source_file = "${path.module}/../../backend/lambdas/ws_connect/lambda_function.py"
+  source_file = "${path.module}/../../backend/lambdas/ws_connect/ws_connect_handler.py"
   output_path = "${path.module}/ws_connect.zip"
 }
 
@@ -1055,7 +1055,7 @@ resource "aws_lambda_function" "ws_connect" {
   filename         = data.archive_file.ws_connect_zip.output_path
   function_name    = "teraspot-ws-connect"
   role             = aws_iam_role.ws_connect_role.arn
-  handler          = "lambda_function.lambda_handler"
+  handler          = "ws_connect_handler.lambda_handler"
   source_code_hash = data.archive_file.ws_connect_zip.output_base64sha256
   runtime          = "python3.12"
   environment {
@@ -1068,7 +1068,7 @@ resource "aws_lambda_function" "ws_connect" {
 # --- Disconnect Lambda ---
 data "archive_file" "ws_disconnect_zip" {
   type        = "zip"
-  source_file = "${path.module}/../../backend/lambdas/ws_disconnect/lambda_function.py"
+  source_file = "${path.module}/../../backend/lambdas/ws_disconnect/ws_disconnect_handler.py"
   output_path = "${path.module}/ws_disconnect.zip"
 }
 
@@ -1095,7 +1095,7 @@ resource "aws_lambda_function" "ws_disconnect" {
   filename         = data.archive_file.ws_disconnect_zip.output_path
   function_name    = "teraspot-ws-disconnect"
   role             = aws_iam_role.ws_disconnect_role.arn
-  handler          = "lambda_function.lambda_handler"
+  handler          = "ws_disconnect_handler.lambda_handler"
   source_code_hash = data.archive_file.ws_disconnect_zip.output_base64sha256
   runtime          = "python3.12"
   environment {
