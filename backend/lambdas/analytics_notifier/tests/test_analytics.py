@@ -8,13 +8,13 @@ import pytest
 # Fix imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from lambda_function import lambda_handler, send_to_sqs
+from analytics_notifier_handler import lambda_handler, send_to_sqs
 
 
 class TestAnalyticsNotifier:
     """Unit tests for analytics_notifier Lambda"""
 
-    @patch("lambda_function.sqs")
+    @patch("analytics_notifier_handler.sqs")
     def test_send_to_sqs_success(self, mock_sqs):
         """Test: Successfully send message to SQS"""
         mock_sqs.send_message.return_value = {"MessageId": "test-msg-123"}
@@ -33,7 +33,7 @@ class TestAnalyticsNotifier:
         assert result
         mock_sqs.send_message.assert_called_once()
 
-    @patch("lambda_function.sqs")
+    @patch("analytics_notifier_handler.sqs")
     def test_send_to_sqs_failure(self, mock_sqs):
         """Test: Failed to send to SQS"""
         mock_sqs.send_message.side_effect = Exception("Connection error")
@@ -45,7 +45,7 @@ class TestAnalyticsNotifier:
 
         assert not result
 
-    @patch("lambda_function.sqs")
+    @patch("analytics_notifier_handler.sqs")
     def test_lambda_handler_low_confidence_alert(self, mock_sqs):
         """Test: Handler processes low confidence alert"""
         mock_sqs.send_message.return_value = {"MessageId": "test-456"}
@@ -72,7 +72,7 @@ class TestAnalyticsNotifier:
         body = json.loads(result["body"])
         assert body["success"]
 
-    @patch("lambda_function.sqs")
+    @patch("analytics_notifier_handler.sqs")
     def test_lambda_handler_high_occupancy(self, mock_sqs):
         """Test: Handler detects high occupancy"""
         mock_sqs.send_message.return_value = {"MessageId": "test-789"}
@@ -100,7 +100,7 @@ class TestAnalyticsNotifier:
         body = json.loads(result["body"])
         assert body["success"]
 
-    @patch("lambda_function.sqs")
+    @patch("analytics_notifier_handler.sqs")
     def test_lambda_handler_empty_records(self, mock_sqs):
         """Test: Handler with empty records"""
         event = {"Records": []}
@@ -111,7 +111,7 @@ class TestAnalyticsNotifier:
         body = json.loads(result["body"])
         assert body["success"]
 
-    @patch("lambda_function.sqs")
+    @patch("analytics_notifier_handler.sqs")
     def test_lambda_handler_missing_event(self, mock_sqs):
         """Test: Handler with missing Records key"""
         event = {}
@@ -120,7 +120,7 @@ class TestAnalyticsNotifier:
 
         assert result["statusCode"] == 400
 
-    @patch("lambda_function.sqs")
+    @patch("analytics_notifier_handler.sqs")
     def test_lambda_handler_error_handling(self, mock_sqs):
         """Test: Handler error handling"""
         mock_sqs.send_message.side_effect = Exception("SQS Error")
@@ -145,7 +145,7 @@ class TestAnalyticsNotifier:
         result = lambda_handler(event, None)
         assert result["statusCode"] in [200, 500]
 
-    @patch("lambda_function.sqs")
+    @patch("analytics_notifier_handler.sqs")
     def test_lambda_handler_modify_event(self, mock_sqs):
         """Test: Handler processes MODIFY events"""
         mock_sqs.send_message.return_value = {"MessageId": "test-modify"}
@@ -175,7 +175,7 @@ class TestAnalyticsNotifier:
 class TestAnalyticsNotifierEdgeCases:
     """Edge case tests"""
 
-    @patch("lambda_function.sqs")
+    @patch("analytics_notifier_handler.sqs")
     def test_boundary_confidence_80_percent(self, mock_sqs):
         """Test: Confidence at exact 0.80 boundary (not low)"""
         event = {
@@ -197,7 +197,7 @@ class TestAnalyticsNotifierEdgeCases:
         result = lambda_handler(event, None)
         assert result["statusCode"] == 200
 
-    @patch("lambda_function.sqs")
+    @patch("analytics_notifier_handler.sqs")
     def test_boundary_confidence_79_percent(self, mock_sqs):
         """Test: Confidence just below boundary (low)"""
         mock_sqs.send_message.return_value = {"MessageId": "test-boundary"}
@@ -221,9 +221,9 @@ class TestAnalyticsNotifierEdgeCases:
         result = lambda_handler(event, None)
         assert result["statusCode"] == 200
 
-    @patch("lambda_function.sqs")
-    @patch("lambda_function.current_table")
-    @patch("lambda_function.history_table")
+    @patch("analytics_notifier_handler.sqs")
+    @patch("analytics_notifier_handler.current_table")
+    @patch("analytics_notifier_handler.history_table")
     def test_scheduled_event_health_check(self, mock_history, mock_current, mock_sqs):
         """Test: Health check detects dead sensors"""
         from datetime import datetime, timedelta, timezone

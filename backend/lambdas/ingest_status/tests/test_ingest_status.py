@@ -6,7 +6,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 import json
 import pytest
 
-from ingest_status import lambda_function
+from ingest_status import ingest_status_handler as lambda_function
 from ingest_status import persistence
 from ingest_status.parser import parse_events
 from ingest_status.qa import validate_data

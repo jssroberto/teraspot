@@ -10,7 +10,7 @@ import pytest
 # Fix imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from lambda_function import (
+from kpi_monitor_handler import (
     calculate_average_parking_duration,
     check_critical_capacity_alert,
     get_available_spaces_by_zone,
@@ -139,7 +139,7 @@ class TestKPILambda:
     # TESTS - NIVEL 1: MÉTRICAS OPERACIONALES
     # ========================================================================
 
-    @patch("lambda_function.current_table")
+    @patch("kpi_monitor_handler.current_table")
     def test_get_current_occupancy_rate_normal(
         self, mock_table, mock_current_table_data
     ):
@@ -155,7 +155,7 @@ class TestKPILambda:
         assert result["occupancy_rate"] == 60.0  # 3/5 * 100
         assert result["status"] == "OPTIMAL"  # 60% está en rango 60-85%
 
-    @patch("lambda_function.current_table")
+    @patch("kpi_monitor_handler.current_table")
     def test_get_current_occupancy_rate_critical(self, mock_table):
         """Test: Calculate occupancy rate - critical status (>90%)"""
         # Crear datos con 95% de ocupación
@@ -170,7 +170,7 @@ class TestKPILambda:
         assert result["occupancy_rate"] == 95.0
         assert result["status"] == "CRITICAL"
 
-    @patch("lambda_function.current_table")
+    @patch("kpi_monitor_handler.current_table")
     def test_get_current_occupancy_rate_no_data(self, mock_table):
         """Test: Calculate occupancy rate - no data available"""
         mock_table.scan.return_value = {"Items": []}
@@ -181,7 +181,7 @@ class TestKPILambda:
         assert result["total_spaces"] == 0
         assert result["status"] == "NO_DATA"
 
-    @patch("lambda_function.current_table")
+    @patch("kpi_monitor_handler.current_table")
     def test_get_available_spaces_by_zone(self, mock_table, mock_current_table_data):
         """Test: Get vacant spaces grouped by zone and facility"""
         mock_table.scan.return_value = {"Items": mock_current_table_data}
@@ -199,7 +199,7 @@ class TestKPILambda:
         assert by_zone["ZONE_A"] == 1
         assert by_zone["ZONE_C"] == 1
 
-    @patch("lambda_function.current_table")
+    @patch("kpi_monitor_handler.current_table")
     def test_get_available_spaces_color_codes(self, mock_table):
         """Test: Vacant spaces color codes (GREEN, YELLOW, RED)"""
         # Test GREEN (>20)
@@ -220,7 +220,7 @@ class TestKPILambda:
         result = get_available_spaces_by_zone()
         assert result["color_code"] == "RED"
 
-    @patch("lambda_function.get_current_occupancy_rate")
+    @patch("kpi_monitor_handler.get_current_occupancy_rate")
     def test_check_critical_capacity_alert_active(self, mock_occupancy):
         """Test: Critical capacity alert - ACTIVE (≥95%)"""
         mock_occupancy.return_value = {
@@ -235,7 +235,7 @@ class TestKPILambda:
         assert result["severity"] == "CRITICAL"
         assert result["threshold"] == 95.0
 
-    @patch("lambda_function.get_current_occupancy_rate")
+    @patch("kpi_monitor_handler.get_current_occupancy_rate")
     def test_check_critical_capacity_alert_inactive(self, mock_occupancy):
         """Test: Critical capacity alert - INACTIVE (<95%)"""
         mock_occupancy.return_value = {
@@ -253,7 +253,7 @@ class TestKPILambda:
     # TESTS - NIVEL 2: MÉTRICAS DE RENDIMIENTO
     # ========================================================================
 
-    @patch("lambda_function.current_table")
+    @patch("kpi_monitor_handler.current_table")
     def test_get_average_detection_confidence_excellent(
         self, mock_table, mock_current_table_data
     ):
@@ -267,7 +267,7 @@ class TestKPILambda:
         # Con los datos mock, el promedio debería estar en rango excelente
         assert result["quality_status"] in ["EXCELLENT", "ACCEPTABLE"]
 
-    @patch("lambda_function.current_table")
+    @patch("kpi_monitor_handler.current_table")
     def test_get_average_detection_confidence_requires_investigation(self, mock_table):
         """Test: Average detection confidence - REQUIRES_INVESTIGATION (<75%)"""
         now = datetime.now(timezone.utc)
@@ -287,7 +287,7 @@ class TestKPILambda:
         assert result["average_confidence"] < 75
         assert result["quality_status"] == "REQUIRES_INVESTIGATION"
 
-    @patch("lambda_function.current_table")
+    @patch("kpi_monitor_handler.current_table")
     def test_get_low_confidence_event_rate_normal(
         self, mock_table, mock_current_table_data
     ):
@@ -301,7 +301,7 @@ class TestKPILambda:
         # Con los datos mock (1 de 5 es bajo), tasa = 20%
         assert result["low_confidence_count"] >= 1
 
-    @patch("lambda_function.current_table")
+    @patch("kpi_monitor_handler.current_table")
     def test_get_low_confidence_event_rate_action_required(self, mock_table):
         """Test: Low confidence rate - ACTION_REQUIRED (>10%)"""
         now = datetime.now(timezone.utc)
@@ -321,7 +321,7 @@ class TestKPILambda:
         assert result["status"] == "ACTION_REQUIRED"
         assert result["low_confidence_rate"] > 10
 
-    @patch("lambda_function.current_table")
+    @patch("kpi_monitor_handler.current_table")
     def test_get_system_health_device_uptime_healthy(
         self, mock_table, mock_current_table_data
     ):
@@ -334,7 +334,7 @@ class TestKPILambda:
         assert result["total_devices"] > 0
         assert result["status"] in ["HEALTHY", "DEGRADED"]
 
-    @patch("lambda_function.current_table")
+    @patch("kpi_monitor_handler.current_table")
     def test_get_system_health_device_uptime_degraded(self, mock_table):
         """Test: System health - DEGRADED (<90% uptime)"""
         now = datetime.now(timezone.utc)
@@ -360,7 +360,7 @@ class TestKPILambda:
     # TESTS - NIVEL 3: ANÁLISIS HISTÓRICO
     # ========================================================================
 
-    @patch("lambda_function.history_table")
+    @patch("kpi_monitor_handler.history_table")
     def test_calculate_average_parking_duration(
         self, mock_table, mock_history_table_data
     ):
@@ -380,7 +380,7 @@ class TestKPILambda:
         # Con datos mock de 2 horas, debería ser RETAIL
         assert result["usage_type"] == "RETAIL"
 
-    @patch("lambda_function.history_table")
+    @patch("kpi_monitor_handler.history_table")
     def test_calculate_average_parking_duration_no_data(self, mock_table):
         """Test: Parking duration calculation with no historical data"""
         mock_table.scan.return_value = {"Items": []}
@@ -391,7 +391,7 @@ class TestKPILambda:
         assert result["sample_size"] == 0
         assert result["usage_type"] == "NO_DATA"
 
-    @patch("lambda_function.history_table")
+    @patch("kpi_monitor_handler.history_table")
     def test_get_peak_occupancy_hours(self, mock_table, mock_history_table_data):
         """Test: Identify peak occupancy hours from historical data"""
         mock_table.scan.return_value = {"Items": mock_history_table_data}
@@ -403,7 +403,7 @@ class TestKPILambda:
         assert "hourly_breakdown" in result
         assert len(result["hourly_breakdown"]) == 24  # 24 horas del día
 
-    @patch("lambda_function.history_table")
+    @patch("kpi_monitor_handler.history_table")
     def test_get_occupancy_trend(self, mock_table, mock_history_table_data):
         """Test: Generate occupancy trend time series"""
         mock_table.scan.return_value = {"Items": mock_history_table_data}
@@ -425,7 +425,7 @@ class TestKPILambda:
     # TESTS - LAMBDA HANDLER
     # ========================================================================
 
-    @patch("lambda_function.get_current_occupancy_rate")
+    @patch("kpi_monitor_handler.get_current_occupancy_rate")
     def test_lambda_handler_specific_kpi(self, mock_occupancy):
         """Test: Lambda handler - request specific KPI"""
         mock_occupancy.return_value = {
@@ -445,17 +445,17 @@ class TestKPILambda:
         assert "data" in body
         assert body["data"]["occupancy_rate"] == 75.0
 
-    @patch("lambda_function.history_table")
-    @patch("lambda_function.current_table")
-    @patch("lambda_function.get_occupancy_trend")
-    @patch("lambda_function.get_peak_occupancy_hours")
-    @patch("lambda_function.calculate_average_parking_duration")
-    @patch("lambda_function.get_system_health_device_uptime")
-    @patch("lambda_function.get_low_confidence_event_rate")
-    @patch("lambda_function.get_average_detection_confidence")
-    @patch("lambda_function.check_critical_capacity_alert")
-    @patch("lambda_function.get_available_spaces_by_zone")
-    @patch("lambda_function.get_current_occupancy_rate")
+    @patch("kpi_monitor_handler.history_table")
+    @patch("kpi_monitor_handler.current_table")
+    @patch("kpi_monitor_handler.get_occupancy_trend")
+    @patch("kpi_monitor_handler.get_peak_occupancy_hours")
+    @patch("kpi_monitor_handler.calculate_average_parking_duration")
+    @patch("kpi_monitor_handler.get_system_health_device_uptime")
+    @patch("kpi_monitor_handler.get_low_confidence_event_rate")
+    @patch("kpi_monitor_handler.get_average_detection_confidence")
+    @patch("kpi_monitor_handler.check_critical_capacity_alert")
+    @patch("kpi_monitor_handler.get_available_spaces_by_zone")
+    @patch("kpi_monitor_handler.get_current_occupancy_rate")
     def test_lambda_handler_all_kpis(
         self,
         mock_get_current_occupancy_rate,
@@ -527,7 +527,7 @@ class TestKPILambda:
         assert "error" in body
         assert "available_kpis" in body
 
-    @patch("lambda_function.get_current_occupancy_rate")
+    @patch("kpi_monitor_handler.get_current_occupancy_rate")
     def test_lambda_handler_with_custom_params(self, mock_occupancy):
         """Test: Lambda handler - KPI with custom parameters"""
         mock_occupancy.return_value = {"occupancy_rate": 80.0}
@@ -541,7 +541,7 @@ class TestKPILambda:
         assert "params" in body["metadata"]
         assert body["metadata"]["params"]["time_window_minutes"] == 30
 
-    @patch("lambda_function.get_current_occupancy_rate")
+    @patch("kpi_monitor_handler.get_current_occupancy_rate")
     def test_lambda_handler_error_handling(self, mock_occupancy):
         """Test: Lambda handler - error handling"""
         mock_occupancy.side_effect = Exception("DynamoDB connection error")
@@ -569,7 +569,7 @@ class TestKPILambda:
     # TESTS - EDGE CASES Y VALIDACIONES
     # ========================================================================
 
-    @patch("lambda_function.current_table")
+    @patch("kpi_monitor_handler.current_table")
     def test_handle_malformed_timestamps(self, mock_table):
         """Test: Handle malformed timestamp data gracefully"""
         now = datetime.now(timezone.utc)
@@ -594,7 +594,7 @@ class TestKPILambda:
         # Debería ignorar el dato malformado y procesar el válido
         assert result["sample_size"] == 1
 
-    @patch("lambda_function.current_table")
+    @patch("kpi_monitor_handler.current_table")
     def test_handle_missing_fields(self, mock_table):
         """Test: Handle missing fields in DynamoDB items"""
         incomplete_data = [
@@ -608,7 +608,7 @@ class TestKPILambda:
         # Debería manejar datos incompletos sin error
         assert "occupancy_rate" in result
 
-    @patch("lambda_function.history_table")
+    @patch("kpi_monitor_handler.history_table")
     def test_parking_duration_incomplete_sessions(self, mock_table):
         """Test: Handle incomplete parking sessions (entry without exit)"""
         now = datetime.now(timezone.utc)
@@ -638,8 +638,8 @@ class TestKPILambda:
 class TestKPIIntegration:
     """Integration tests for KPI Lambda with realistic scenarios"""
 
-    @patch("lambda_function.current_table")
-    @patch("lambda_function.history_table")
+    @patch("kpi_monitor_handler.current_table")
+    @patch("kpi_monitor_handler.history_table")
     def test_full_dashboard_workflow(self, mock_history, mock_current):
         """Test: Complete dashboard workflow with all KPIs"""
         # Setup realistic data

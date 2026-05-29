@@ -34,11 +34,7 @@ test: test-lambdas test-fog
 
 test-lambdas:
 	@echo "🏃 Running Lambda test suites..."
-	uv run pytest backend/lambdas/analytics_notifier
-	uv run pytest backend/lambdas/config_saver
-	uv run pytest backend/lambdas/ingest_status
-	uv run pytest backend/lambdas/kpi_monitor
-	uv run pytest backend/lambdas/read_status
+	uv run pytest --import-mode=importlib backend/lambdas
 
 test-fog:
 	@echo "🏃 Running simulated edge node tests..."

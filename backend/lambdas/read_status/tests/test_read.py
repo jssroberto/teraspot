@@ -3,7 +3,7 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 import json
 from decimal import Decimal
-from lambda_function import (
+from read_status_handler import (
     decimal_to_float,
     lambda_handler
 )
