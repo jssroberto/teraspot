@@ -31,18 +31,18 @@ help:
 
 
 test: test-lambdas test-fog
-	@echo "🏆 All test suites executed successfully!"
+	@echo "All test suites executed successfully!"
 
 test-lambdas:
-	@echo "🏃 Running Lambda test suites..."
+	@echo "Running Lambda test suites..."
 	uv run pytest --import-mode=importlib backend/lambdas
 
 test-fog:
-	@echo "🏃 Running simulated edge node tests..."
+	@echo "Running simulated edge node tests..."
 	uv run pytest fog/
 
 build-fog:
-	@echo "📦 Compiling pinned dependencies from workspace lockfile..."
+	@echo "Compiling pinned dependencies from workspace lockfile..."
 	uv export --package teraspot-fog --output-file fog/requirements.txt
-	@echo "🐳 Building Fog Docker container..."
+	@echo "Building Fog Docker container..."
 	docker build -t teraspot-fog:latest ./fog

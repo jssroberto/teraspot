@@ -35,105 +35,78 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: "latest"
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+
+      - name: Set up Python
+        run: uv python install 3.12
+
       - uses: aws-actions/configure-aws-credentials@v2
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
 
+      - name: Make package-lambda.sh executable
+        run: chmod +x ./scripts/package-lambda.sh
+
       - name: Deploy ingest_status
         run: |
-          cd backend/lambdas/ingest_status
-          rm -rf package lambda.zip
-          mkdir -p package
-          cp -r ../../shared/utils package/
-          cp -R ./*.py package/
-          cd package && zip -r ../lambda.zip . && cd ..
+          ./scripts/package-lambda.sh ingest_status
           aws lambda update-function-code \
             --function-name teraspot-ingest-status \
-            --zip-file fileb://lambda.zip
+            --zip-file fileb://backend/lambdas/ingest_status/lambda.zip
 
       - name: Deploy analytics_notifier
         run: |
-          cd backend/lambdas/analytics_notifier
-          rm -rf package lambda.zip
-          mkdir -p package
-          cp -r ../../shared/utils package/
-          cp analytics_notifier_handler.py package/
-          cd package && zip -r ../lambda.zip . && cd ..
+          ./scripts/package-lambda.sh analytics_notifier
           aws lambda update-function-code \
             --function-name teraspot-analytics-notifier \
-            --zip-file fileb://lambda.zip
+            --zip-file fileb://backend/lambdas/analytics_notifier/lambda.zip
 
       - name: Deploy read_status
         run: |
-          cd backend/lambdas/read_status
-          rm -rf package lambda.zip
-          mkdir -p package
-          cp -r ../../shared/utils package/
-          cp read_status_handler.py package/
-          cd package && zip -r ../lambda.zip . && cd ..
+          ./scripts/package-lambda.sh read_status
           aws lambda update-function-code \
             --function-name teraspot-read-status \
-            --zip-file fileb://lambda.zip
+            --zip-file fileb://backend/lambdas/read_status/lambda.zip
 
       - name: Deploy config_saver
         run: |
-          cd backend/lambdas/config_saver
-          rm -rf package lambda.zip
-          mkdir -p package
-          cp -r ../../shared/utils package/
-          cp config_saver_handler.py package/
-          cd package && zip -r ../lambda.zip . && cd ..
+          ./scripts/package-lambda.sh config_saver
           aws lambda update-function-code \
             --function-name teraspot-config-saver \
-            --zip-file fileb://lambda.zip
+            --zip-file fileb://backend/lambdas/config_saver/lambda.zip
 
       - name: Deploy kpi_monitor
         run: |
-          cd backend/lambdas/kpi_monitor
-          rm -rf package lambda.zip
-          mkdir -p package
-          cp -r ../../shared/utils package/
-          cp kpi_monitor_handler.py package/
-          cd package && zip -r ../lambda.zip . && cd ..
+          ./scripts/package-lambda.sh kpi_monitor
           aws lambda update-function-code \
             --function-name teraspot-kpi-monitor \
-            --zip-file fileb://lambda.zip
+            --zip-file fileb://backend/lambdas/kpi_monitor/lambda.zip
 
       - name: Deploy device_command
         run: |
-          cd backend/lambdas/device_command
-          rm -rf package lambda.zip
-          mkdir -p package
-          cp -r ../../shared/utils package/
-          cp device_command_handler.py package/
-          cd package && zip -r ../lambda.zip . && cd ..
+          ./scripts/package-lambda.sh device_command
           aws lambda update-function-code \
             --function-name teraspot-device-command \
-            --zip-file fileb://lambda.zip
+            --zip-file fileb://backend/lambdas/device_command/lambda.zip
 
       - name: Deploy ws_connect
         run: |
-          cd backend/lambdas/ws_connect
-          rm -rf package lambda.zip
-          mkdir -p package
-          cp -r ../../shared/utils package/
-          cp ws_connect_handler.py package/
-          cd package && zip -r ../lambda.zip . && cd ..
+          ./scripts/package-lambda.sh ws_connect
           aws lambda update-function-code \
             --function-name teraspot-ws-connect \
-            --zip-file fileb://lambda.zip
+            --zip-file fileb://backend/lambdas/ws_connect/lambda.zip
 
       - name: Deploy ws_disconnect
         run: |
-          cd backend/lambdas/ws_disconnect
-          rm -rf package lambda.zip
-          mkdir -p package
-          cp -r ../../shared/utils package/
-          cp ws_disconnect_handler.py package/
-          cd package && zip -r ../lambda.zip . && cd ..
+          ./scripts/package-lambda.sh ws_disconnect
           aws lambda update-function-code \
             --function-name teraspot-ws-disconnect \
-            --zip-file fileb://lambda.zip
+            --zip-file fileb://backend/lambdas/ws_disconnect/lambda.zip
 
