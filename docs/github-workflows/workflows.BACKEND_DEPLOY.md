@@ -20,13 +20,10 @@ This job runs **only if** the `test` job succeeds. It updates the code for every
 ### Deployment Process (Per Function)
 The workflow iterates through each Lambda function and performs the following operations:
 
-1.  **Dependency Installation**:
-    Installs specific runtime dependencies (from `requirements.txt`) into a temporary `package/` folder.
-
-2.  **Packaging**:
-    Copies the function code (`lambda_function.py`, etc.) into the `package/` folder.
+1.  **Packaging**:
+    Copies the function code (e.g. `ingest_status_handler.py`, etc.) and the shared utility code (`shared/utils/`) into a temporary `package/` folder.
     Zips the contents of `package/` into a `lambda.zip` file.
-    *   *Note: This creates a self-contained artifact combining code + dependencies.*
+    *   *Note: This creates a self-contained artifact combining the lambda handler and local shared helpers. Third-party dependencies are currently not packaged since all backend Lambdas rely exclusively on pre-installed library environments (e.g. boto3).*
 
 3.  **AWS Update**:
     Uses the AWS CLI (`aws lambda update-function-code`) to upload the zip file to the corresponding Lambda function.

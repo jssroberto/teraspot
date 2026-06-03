@@ -32,12 +32,14 @@ Please refer to `docs/API.md` for all interaction details.
 ### Prerequisites
 
 - Python 3.13+
-- `pip`
+- `uv`
 
-### Installation
+### Installation & Sync
+
+To synchronize the workspace and setup all packages, run from the root of the workspace:
 
 ```bash
-pip install -r requirements.txt
+uv sync
 ```
 
 ### Running Tests
@@ -45,6 +47,6 @@ pip install -r requirements.txt
 Tests use `moto` to mock S3 interactions, so no real AWS credentials are required for testing.
 
 ```bash
-pip install -r requirements-dev.txt
-pytest
+# Run pytest specifically for this lambda
+uv run pytest backend/lambdas/config_saver/tests/
 ```

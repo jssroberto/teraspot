@@ -1,20 +1,24 @@
 # Dependencies & Requirements
 
-The backend uses standard Python package management (`pip`).
+The backend uses **`uv`** for workspaces and Python package management.
 
-## Requirements Files
+## Dependency Configuration
 
-*   **`requirements.txt`**: 
-    *   Found in each `backend/lambdas/<lambda_name>/` directory.
-    *   Contains the production dependencies required for that specific function to run (e.g., `requests`, `pydantic`).
-    *   These are installed during the build/deploy process.
+*   **`pyproject.toml` (Root)**:
+    *   Defines workspace members, global python requirements, and shared development/testing dependencies (`[dependency-groups]`).
+    
+*   **`backend/shared/pyproject.toml`**:
+    *   Defines shared backend utility packages and their dependencies (e.g., `boto3`).
 
-*   **`backend/requirements-test.txt`**:
-    *   Contains development and testing dependencies shared across the project.
-    *   Key packages:
-        *   `pytest`: The testing framework.
-        *   `botocore-stubs`, `boto3-stubs`: Type hints for AWS SDK.
-        *   `moto`: Library for mocking AWS services (DynamoDB, S3, etc.) locally during tests.
+*   **`backend/lambdas/<lambda_name>/pyproject.toml`**:
+    *   Defines the dependencies required for that specific Lambda function to run.
+    *   Includes workspace references to `teraspot-shared` where applicable.
 
-## Dependency Management
-Since AWS Lambda has a size limit, we avoid a single monolithic `requirements.txt` for the whole project. Instead, each function manages its own lightweight set of dependencies.
+## Dependency Management & Workspaces
+Since AWS Lambda has package size limits, we avoid installing a single monolithic dependency bundle for the entire project. Instead, each function maintains its own scoped dependencies in its local `pyproject.toml`.
+
+Local development is coordinated via the root workspace:
+```bash
+# Synchronize all workspace member dependencies
+uv sync
+```
