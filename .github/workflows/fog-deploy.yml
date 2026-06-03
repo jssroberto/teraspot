@@ -23,6 +23,19 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: "latest"
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Export Pinned Dependencies
+        run: uv export --package teraspot-fog --output-file fog/requirements.txt
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:

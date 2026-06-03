@@ -11,10 +11,10 @@ COPY --from=ghcr.io/astral-sh/uv:0.5.21 /uv /uvx /bin/
 
 WORKDIR /app
 
-COPY pyproject.toml /app/pyproject.toml
+COPY requirements.txt /app/requirements.txt
 
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv pip install --system -r /app/pyproject.toml
+    uv pip install --system --index-strategy unsafe-best-match --index https://download.pytorch.org/whl/cpu -r /app/requirements.txt
 
 COPY . /app/
 
