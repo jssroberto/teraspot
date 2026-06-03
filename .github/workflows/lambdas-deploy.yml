@@ -51,9 +51,6 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
 
-      - name: Make package-lambda.sh executable
-        run: chmod +x ./scripts/package-lambda.sh
-
       - name: Deploy ingest_status
         run: |
           ./scripts/package-lambda.sh ingest_status

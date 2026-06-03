@@ -11,6 +11,12 @@ fi
 echo "Packaging Lambda: $LAMBDA_NAME..."
 
 LAMBDA_DIR="backend/lambdas/$LAMBDA_NAME"
+
+if [ ! -d "$LAMBDA_DIR" ]; then
+  echo "Error: Lambda directory '$LAMBDA_DIR' does not exist."
+  exit 1
+fi
+
 PACKAGE_DIR="$LAMBDA_DIR/package"
 ZIP_FILE="$LAMBDA_DIR/lambda.zip"
 
@@ -39,7 +45,7 @@ uv export \
 if [ -s "$LAMBDA_DIR/requirements.txt" ] && [ "$(grep -v '^#' "$LAMBDA_DIR/requirements.txt" | grep -v '^\s*$')" ]; then
   echo "Installing external dependencies into package..."
   uv pip install \
-    --system \
+    --python 3.12 \
     --target "$PACKAGE_DIR" \
     -r "$LAMBDA_DIR/requirements.txt"
 fi
@@ -53,6 +59,10 @@ if [ -d "backend/shared/utils" ]; then
   cp -r backend/shared/utils "$PACKAGE_DIR/"
 fi
 cp -R "$LAMBDA_DIR"/*.py "$PACKAGE_DIR/" 2>/dev/null || true
+
+# Remove python bytecode cache directories/files
+find "$PACKAGE_DIR" -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
+find "$PACKAGE_DIR" -type f -name "*.pyc" -delete 2>/dev/null || true
 
 # 4. Zip the package directory
 cd "$PACKAGE_DIR"
