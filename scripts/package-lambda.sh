@@ -30,6 +30,7 @@ PKG_NAME="teraspot-${LAMBDA_NAME//_/-}"
 
 # Export dependencies omitting workspace members and standard Lambda runtime libraries
 uv export \
+  --frozen \
   --package "$PKG_NAME" \
   --no-emit-workspace \
   --no-emit-package boto3 \

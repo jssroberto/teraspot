@@ -19,6 +19,8 @@ jobs:
   build-and-push:
     runs-on: ubuntu-22.04
     timeout-minutes: 15
+    env:
+      UV_FROZEN: "1"
 
     steps:
       - name: Checkout code
@@ -35,7 +37,7 @@ jobs:
         run: uv python install 3.12
 
       - name: Export Pinned Dependencies
-        run: uv export --package teraspot-fog --output-file fog/requirements.txt
+        run: uv export --frozen --package teraspot-fog --output-file fog/requirements.txt
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6.2.0
