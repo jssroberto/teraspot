@@ -239,7 +239,7 @@ def main():
     # Try to fetch dynamic config (Video Source) from API
     # We do this even in Mock mode for Hybrid Mode support
     try:
-        api_base = os.getenv("TERASPOT_API_URL", "https://7omj4x5pbg.execute-api.us-east-1.amazonaws.com/dev")
+        api_base = os.getenv("TERASPOT_API_URL", "https://7omj4x5pbg.execute-api.us-east-1.amazonaws.com/dev").rstrip("/")
         api_url = f"{api_base}/config"
         payload = {"action": "GET", "config_id": f"device-{args.device_id}"}
         resp = requests.post(api_url, json=payload, timeout=5)

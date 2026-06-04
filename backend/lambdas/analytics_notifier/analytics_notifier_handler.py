@@ -132,8 +132,12 @@ def get_alert_config():
             logger.info("No alert config found in S3, using defaults")
         else:
             logger.error(f"Error loading config from S3: {e}")
+        cached_config = config
+        last_config_load = now
     except Exception as e:
         logger.error(f"Error loading config from S3: {e}")
+        cached_config = config
+        last_config_load = now
 
     return config
 

@@ -3,7 +3,7 @@ import json
 
 def check_roi():
     import os
-    api_base = os.getenv("TERASPOT_API_URL", "https://7omj4x5pbg.execute-api.us-east-1.amazonaws.com/dev")
+    api_base = os.getenv("TERASPOT_API_URL", "https://7omj4x5pbg.execute-api.us-east-1.amazonaws.com/dev").rstrip("/")
     url = f"{api_base}/config"
     device_id = "TeraSpot-edge-device"
     payload = {
