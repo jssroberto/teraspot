@@ -1,7 +1,9 @@
 import requests
 import json
 
-API_URL = "https://vmdq0zxc18.execute-api.us-east-1.amazonaws.com/dev/kpi"
+import os
+api_base = os.getenv("TERASPOT_API_URL", "https://vmdq0zxc18.execute-api.us-east-1.amazonaws.com/dev")
+API_URL = f"{api_base}/kpi"
 
 # Test 1: Occupancy Trend
 print("Testing Occupancy Trend...")

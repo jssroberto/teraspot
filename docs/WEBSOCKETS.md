@@ -23,7 +23,7 @@ graph LR
 ## 🛠️ Components
 
 ### 1. API Gateway (WebSocket API)
-- **Endpoint:** `wss://vmdq0zxc18.execute-api.us-east-1.amazonaws.com/dev`
+- **Endpoint:** `wss://vmdq0zxc18.execute-api.us-east-1.amazonaws.com/dev` (Configurable via `EXPO_PUBLIC_WEBSOCKET_URL` environment variable)
 - **Routes:**
     - `$connect`: Triggers `ws_connect` Lambda.
     - `$disconnect`: Triggers `ws_disconnect` Lambda.

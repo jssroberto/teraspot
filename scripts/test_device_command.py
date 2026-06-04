@@ -2,7 +2,9 @@ import requests
 import json
 
 def test_screenshot():
-    url = "https://7omj4x5pbg.execute-api.us-east-1.amazonaws.com/dev/device/TeraSpot-edge-device/command"
+    import os
+    api_base = os.getenv("TERASPOT_API_URL", "https://7omj4x5pbg.execute-api.us-east-1.amazonaws.com/dev")
+    url = f"{api_base}/device/TeraSpot-edge-device/command"
     payload = {
         "device_id": "TeraSpot-edge-device",
         "command": "screenshot"
