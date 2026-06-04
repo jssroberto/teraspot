@@ -28,6 +28,7 @@ minversion = "7.0"
 addopts = "-ra -q --import-mode=importlib"
 testpaths = [
     "backend/lambdas",
+    "backend/shared/tests",
     "fog/tests"
 ]
 pythonpath = [
