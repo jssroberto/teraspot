@@ -1,0 +1,20 @@
+name: 'Deploy AWS Lambda'
+description: 'Packages and updates a specific Lambda function code'
+inputs:
+  lambda-name:
+    description: 'Name of the Lambda function directory'
+    required: true
+  function-name:
+    description: 'AWS Lambda function name'
+    required: true
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Package and Deploy Lambda
+      run: |
+        ./scripts/package-lambda.sh "${{ inputs.lambda-name }}"
+        aws lambda update-function-code \
+          --function-name "${{ inputs.function-name }}" \
+          --zip-file "fileb://backend/lambdas/${{ inputs.lambda-name }}/lambda.zip"
+      shell: bash
