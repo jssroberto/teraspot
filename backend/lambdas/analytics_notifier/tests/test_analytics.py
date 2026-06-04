@@ -221,12 +221,21 @@ class TestAnalyticsNotifierEdgeCases:
         result = lambda_handler(event, None)
         assert result["statusCode"] == 200
 
+    @patch("analytics_notifier_handler.get_alert_config")
     @patch("analytics_notifier_handler.sqs")
     @patch("analytics_notifier_handler.current_table")
     @patch("analytics_notifier_handler.history_table")
-    def test_scheduled_event_health_check(self, mock_history, mock_current, mock_sqs):
+    def test_scheduled_event_health_check(self, mock_history, mock_current, mock_sqs, mock_config):
         """Test: Health check detects dead sensors"""
         from datetime import datetime, timedelta, timezone
+
+        mock_config.return_value = {
+            "occupancy_threshold_warning": 80,
+            "occupancy_threshold_critical": 95,
+            "confidence_threshold": 0.8,
+            "inactive_timeout_minutes": 5,
+            "channels": {"email": False, "app": False},
+        }
 
         # Setup mock data
         now = datetime.now(timezone.utc)

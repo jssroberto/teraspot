@@ -10,24 +10,22 @@ The workflow runs automatically under the following conditions:
 1.  **Push to `dev`**: When code is pushed or merged to the `dev` branch.
 2.  **Path Filtering**: ONLY runs if changes are detected in the `backend/` directory or the workflow file itself.
 
-## Job: `test`
+### Job: `test`
 This job runs the test suite on an `ubuntu-22.04` runner.
 
 ### Environment
-The job injects mock AWS credentials to prevent tests from accidentally attempting to connect to real AWS services.
+The job injects mock AWS credentials to prevent tests from accidentally attempting to connect to real AWS services, and locks the packaging dependencies to prevent mutation.
 *   `AWS_ACCESS_KEY_ID`: `testing`
 *   `AWS_SECRET_ACCESS_KEY`: `testing`
 *   `AWS_DEFAULT_REGION`: `us-east-1`
+*   `UV_FROZEN`: `1` (Ensures the lockfile is treated as read-only)
 
 ### Step Breakdown
+1.  **Checkout Code**: Fetches the repository securely using `actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3`.
 
-1.  **Checkout Code**: Fetches the repository.
-
-2.  **Set up Python**:
-    Installs Python 3.12 (matching the Lambda runtime environment).
-
+2.  **Set up Python and uv**: Sets up the Package Manager and installs Python 3.12 (matching the Lambda runtime environment) using the shared local composite action `./.github/actions/setup-python-uv`.
 3.  **Install Dependencies**:
-    Installs testing libraries (like `pytest`, `boto3-stubs`, `moto`) from `backend/requirements-test.txt`.
+    Synchronizes the workspace packages and testing libraries from `uv.lock` using `uv sync --frozen --python 3.12 --all-packages`.
 
 4.  **Run Tests**:
     The workflow executes `pytest` independently for each microservice module to ensure isolation.
