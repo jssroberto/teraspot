@@ -84,6 +84,60 @@ def capture_video_frame(video_path):
         return None
 
 
+def process_device_command(payload, yolo, args):
+    """Processes device commands (e.g. screenshot, reload_config)."""
+    try:
+        message = json.loads(payload)
+        command = message.get("command")
+        logger.info(f"Received command: {command}")
+
+        if command == "screenshot":
+            upload_url = message.get("upload_url")
+            if not upload_url:
+                logger.error("Screenshot command missing upload_url")
+                return False
+
+            frame_bytes = None
+            if yolo:
+                frame_bytes = yolo.get_current_frame()
+            elif args.video:
+                frame_bytes = capture_video_frame(args.video)
+            elif args.image:
+                try:
+                    with open(args.image, "rb") as f:
+                        frame_bytes = f.read()
+                except Exception as e:
+                    logger.error(f"Error reading mock image fallback: {e}")
+
+            if frame_bytes:
+                logger.info("Uploading screenshot...")
+                try:
+                    resp = requests.put(
+                        upload_url,
+                        data=frame_bytes,
+                        headers={"Content-Type": "image/jpeg"},
+                        timeout=10
+                    )
+                    if resp.status_code == 200:
+                        logger.info("Screenshot uploaded successfully")
+                        return True
+                    else:
+                        logger.error(
+                            f"Failed to upload screenshot: {resp.status_code} - {resp.text}"
+                        )
+                except Exception as e:
+                    logger.error(f"Network error uploading screenshot: {e}")
+            else:
+                logger.warning("No frame available for capture/screenshot")
+
+        elif command == "reload_config":
+            return "reload_config"
+
+    except Exception as e:
+        logger.error(f"Error processing command: {e}")
+    return False
+
+
 def main():
     """Main function"""
     parser = argparse.ArgumentParser(description="TeraSpot Edge Publisher")
@@ -309,65 +363,15 @@ def main():
         logger.info(f"Subscribing to commands on: {command_topic}")
 
         def on_command_received(topic, payload, dup, qos, retain, **kwargs):
-            try:
-                message = json.loads(payload)
-                command = message.get("command")
-                logger.info(f"Received command: {command}")
-
-                if command == "screenshot":
-                    upload_url = message.get("upload_url")
-                    if not upload_url:
-                        logger.error("Screenshot command missing upload_url")
-                        return
-
-                    if yolo:
-                        frame_bytes = yolo.get_current_frame()
-                        if frame_bytes:
-                            logger.info("Uploading screenshot...")
-                            resp = requests.put(
-                                upload_url,
-                                data=frame_bytes,
-                                headers={"Content-Type": "image/jpeg"},
-                            )
-                            if resp.status_code == 200:
-                                logger.info("Screenshot uploaded successfully")
-                            else:
-                                logger.error(
-                                    f"Failed to upload screenshot: {resp.status_code} - {resp.text}"
-                                )
-                        else:
-                            logger.warning("No frame available for screenshot")
-                    else:
-                        logger.warning("No video source available for screenshot")
-
-                    if frame_bytes:
-                        logger.info("Uploading screenshot...")
-                        resp = requests.put(
-                            upload_url,
-                            data=frame_bytes,
-                            headers={"Content-Type": "image/jpeg"},
-                        )
-                        if resp.status_code == 200:
-                            logger.info("Screenshot uploaded successfully")
-                        else:
-                            logger.error(
-                                f"Failed to upload screenshot: {resp.status_code} - {resp.text}"
-                            )
-                    else:
-                        logger.warning("Failed to capture frame")
-
-                elif command == "reload_config":
-                    logger.info("Reloading configuration...")
-                    # Reload ROI config
-                    new_roi_spaces = resolve_roi_spaces(args)
-                    if new_roi_spaces and yolo:
-                        yolo.set_roi_spaces(new_roi_spaces)
-                        logger.info("ROI configuration reloaded")
-                    elif not new_roi_spaces:
-                        logger.warning("Reload requested but no ROI config found")
-
-            except Exception as e:
-                logger.error(f"Error processing command: {e}")
+            res = process_device_command(payload, yolo, args)
+            if res == "reload_config":
+                logger.info("Reloading configuration...")
+                new_roi_spaces = resolve_roi_spaces(args)
+                if new_roi_spaces and yolo:
+                    yolo.set_roi_spaces(new_roi_spaces)
+                    logger.info("ROI configuration reloaded")
+                elif not new_roi_spaces:
+                    logger.warning("Reload requested but no ROI config found")
 
         subscribe_future, _ = mqtt_connection.subscribe(
             topic=command_topic,
