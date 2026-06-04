@@ -18,15 +18,11 @@ Identical to the **Backend CI** job. It runs all unit tests.
 This job runs **only if** the `test` job succeeds. It updates the code for every Lambda function in the system.
 
 ### Deployment Process (Per Function)
-The workflow iterates through each Lambda function and performs the following operations:
+The workflow iterates through each Lambda function and delegates packaging and deployment to the shared local composite action `./.github/actions/deploy-lambda`. 
 
-1.  **Packaging**:
-    Copies the function code (e.g., `ingest_status_handler.py`, etc.) and the shared utility code (`shared/utils/`) into a temporary `package/` folder.
-    Zips the contents of `package/` into a `lambda.zip` file.
-    *   *Note: This creates a self-contained artifact combining the lambda handler, local shared helpers, and any third-party dependencies defined in the lambda's local `pyproject.toml` (which are resolved and compiled via `uv export --frozen` and `uv pip install` into the bundle).*
-
-3.  **AWS Update**:
-    Uses the AWS CLI (`aws lambda update-function-code`) to upload the zip file to the corresponding Lambda function.
+Under the hood, this composite action:
+1.  **Packages the Lambda**: Invokes `scripts/package-lambda.sh` to copy the handler code and shared utilities (`backend/shared/utils`) into a temporary `package/` directory, compiles/installs dependencies from `uv.lock` using `uv export --frozen` and `uv pip install`, and zips the results to `lambda.zip`.
+2.  **Deploys to AWS**: Uses the AWS CLI (`aws lambda update-function-code`) to upload the zip file directly to the corresponding Lambda function target.
 
 ### Deployed Functions mapping
 

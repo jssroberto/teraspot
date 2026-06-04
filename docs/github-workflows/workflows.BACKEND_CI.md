@@ -21,18 +21,13 @@ The job injects mock AWS credentials to prevent tests from accidentally attempti
 *   `UV_FROZEN`: `1` (Ensures the lockfile is treated as read-only)
 
 ### Step Breakdown
-
 1.  **Checkout Code**: Fetches the repository securely using `actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3`.
 
-2.  **Set up uv**: Sets up the Package Manager using `astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0`.
-
-3.  **Set up Python**:
-    Installs Python 3.12 (matching the Lambda runtime environment).
-
-4.  **Install Dependencies**:
+2.  **Set up Python and uv**: Sets up the Package Manager and installs Python 3.12 (matching the Lambda runtime environment) using the shared local composite action `./.github/actions/setup-python-uv`.
+3.  **Install Dependencies**:
     Synchronizes the workspace packages and testing libraries from `uv.lock` using `uv sync --frozen --python 3.12 --all-packages`.
 
-5.  **Run Tests**:
+4.  **Run Tests**:
     The workflow executes `pytest` independently for each microservice module to ensure isolation.
     *   **ingest_status**: Tests the IoT data ingestion logic.
     *   **analytics_notifier**: Tests the DynamoDB Stream processing and WebSocket broadcasting.
