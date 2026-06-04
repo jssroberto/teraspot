@@ -239,7 +239,8 @@ def main():
     # Try to fetch dynamic config (Video Source) from API
     # We do this even in Mock mode for Hybrid Mode support
     try:
-        api_url = "https://7omj4x5pbg.execute-api.us-east-1.amazonaws.com/dev/config"
+        api_base = os.getenv("TERASPOT_API_URL", "https://7omj4x5pbg.execute-api.us-east-1.amazonaws.com/dev")
+        api_url = f"{api_base}/config"
         payload = {"action": "GET", "config_id": f"device-{args.device_id}"}
         resp = requests.post(api_url, json=payload, timeout=5)
         if resp.status_code == 200:
@@ -253,24 +254,6 @@ def main():
 
     if args.use_yolo:
         roi_spaces = resolve_roi_spaces(args)
-
-        # Try to fetch dynamic config (Video Source) from API
-        try:
-            api_url = (
-                "https://7omj4x5pbg.execute-api.us-east-1.amazonaws.com/dev/config"
-            )
-            payload = {"action": "GET", "config_id": f"device-{args.device_id}"}
-            resp = requests.post(api_url, json=payload, timeout=5)
-            if resp.status_code == 200:
-                device_config = resp.json().get("config", {}).get("value", {})
-                remote_video = device_config.get("video_source")
-                if remote_video:
-                    logger.info(
-                        f"Found remote video source configuration: {remote_video}"
-                    )
-                    args.video = remote_video
-        except Exception as e:
-            logger.warning(f"Failed to fetch remote device config: {e}")
 
         if not roi_spaces:
             logger.error(

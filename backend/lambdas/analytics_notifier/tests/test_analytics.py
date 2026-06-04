@@ -5,9 +5,6 @@ from unittest.mock import patch
 
 import pytest
 
-# Fix imports
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
 from analytics_notifier_handler import lambda_handler, send_to_sqs
 
 

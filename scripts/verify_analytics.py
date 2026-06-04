@@ -23,46 +23,9 @@ mock_resource.Table.return_value = mock_table
 
 mock_sqs = MagicMock()
 mock_client.send_message.return_value = {'MessageId': '123'}
+import analytics_notifier_handler as lambda_function
 
-import lambda_function
-
-def test_history_archival():
-    print("Testing History Archival Logic...")
-    
-    event = {
-        'Records': [
-            {
-                'eventName': 'INSERT',
-                'dynamodb': {
-                    'NewImage': {
-                        'space_id': {'S': 'space-101'},
-                        'timestamp': {'S': '2023-10-27T10:00:00Z'},
-                        'status': {'S': 'occupied'},
-                        'confidence': {'N': '0.95'},
-                        'device_id': {'S': 'cam-01'}
-                    }
-                }
-            }
-        ]
-    }
-    
-    lambda_function.lambda_handler(event, None)
-    
-    lambda_function.history_table.put_item.assert_called_once()
-    
-    from decimal import Decimal
-    
-    call_args = lambda_function.history_table.put_item.call_args
-    item = call_args.kwargs['Item']
-    
-    print(f"📦 Captured Item: {item}")
-    
-    assert item['space_id'] == 'space-101', f"Expected space-101, got {item['space_id']}"
-    assert item['status'] == 'occupied', f"Expected occupied, got {item['status']}"
-    assert item['confidence'] == Decimal('0.95'), f"Expected 0.95, got {item['confidence']}"
-    assert 'archived_at' in item, "Missing archived_at timestamp"
-    
-    print("Success! Item was archived to history table.")
+# test_history_archival removed as stream history archival is now handled by ingest_status
 
 def test_low_confidence_alert():
     print("\n🧪 Testing Low Confidence Alert...")
@@ -91,7 +54,6 @@ def test_low_confidence_alert():
 
 if __name__ == "__main__":
     try:
-        test_history_archival()
         test_low_confidence_alert()
         print("\nAll local tests passed!")
     except AssertionError as e:

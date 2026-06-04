@@ -107,7 +107,8 @@ def _load_roi_config_from_s3(bucket, key, region=None):
 
 def _load_roi_config_from_api(device_id):
     try:
-        api_url = "https://7omj4x5pbg.execute-api.us-east-1.amazonaws.com/dev/config"
+        api_base = os.getenv("TERASPOT_API_URL", "https://7omj4x5pbg.execute-api.us-east-1.amazonaws.com/dev")
+        api_url = f"{api_base}/config"
         payload = {"action": "GET", "config_id": f"roi-{device_id}"}
         resp = requests.post(api_url, json=payload, timeout=5)
         if resp.status_code == 200:

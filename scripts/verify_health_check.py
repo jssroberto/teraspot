@@ -19,7 +19,6 @@ mock_client = MagicMock()
 mock_boto3.resource.return_value = mock_resource
 mock_boto3.client.return_value = mock_client
 sys.modules['boto3'] = mock_boto3
-
 mock_history_table = MagicMock()
 mock_current_table = MagicMock()
 
@@ -30,7 +29,7 @@ def get_table_side_effect(name):
 
 mock_resource.Table.side_effect = get_table_side_effect
 
-import lambda_function
+import analytics_notifier_handler as lambda_function
 
 def test_health_check_inactive_sensor():
     print("Testing Health Check (Inactive Sensor)...")

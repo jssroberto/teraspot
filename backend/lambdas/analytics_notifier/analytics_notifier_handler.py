@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
 import boto3
+from botocore.exceptions import ClientError
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -126,8 +127,11 @@ def get_alert_config():
         cached_config = config
         last_config_load = now
         logger.info("Loaded alert config from S3")
-    except s3.exceptions.NoSuchKey:
-        logger.info("No alert config found in S3, using defaults")
+    except ClientError as e:
+        if e.response["Error"]["Code"] == "NoSuchKey":
+            logger.info("No alert config found in S3, using defaults")
+        else:
+            logger.error(f"Error loading config from S3: {e}")
     except Exception as e:
         logger.error(f"Error loading config from S3: {e}")
 
