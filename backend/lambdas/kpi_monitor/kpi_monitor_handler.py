@@ -799,8 +799,9 @@ def predict_future_occupancy(hours_back=168, prediction_horizon_hours=24):
         sum_xy = sum(x * y for x, y in zip(x_values, y_values))
         sum_xx = sum(x * x for x in x_values)
         
-        slope_m = (n * sum_xy - sum_x * sum_y) / (n * sum_xx - sum_x ** 2)
-        intercept_b = (sum_y - slope_m * sum_x) / n
+        denom = (n * sum_xx - sum_x ** 2)
+        slope_m = (n * sum_xy - sum_x * sum_y) / denom if abs(denom) > 1e-9 else 0.0
+        intercept_b = (sum_y - slope_m * sum_x) / n if n > 0 else 0.0
         
         # Generate Predictions
         predictions = []

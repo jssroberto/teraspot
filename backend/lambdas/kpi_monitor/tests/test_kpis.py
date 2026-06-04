@@ -1,14 +1,9 @@
 import json
-import os
-import sys
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from unittest.mock import MagicMock, patch
 
 import pytest
-
-# Fix imports
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from kpi_monitor_handler import (
     calculate_average_parking_duration,
