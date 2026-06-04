@@ -1,6 +1,3 @@
-import sys
-import os
-sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 import json
 from decimal import Decimal
 from read_status_handler import (

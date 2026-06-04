@@ -2,7 +2,15 @@ import { fetchAuthSession } from "aws-amplify/auth";
 import axios from "axios";
 
 // TODO: Use environment variable
+declare const process: any;
+
+const getEnvVar = (key: string): string | undefined => {
+  return typeof process !== "undefined" && process.env ? process.env[key] : undefined;
+};
+
 const API_BASE_URL =
+  getEnvVar("EXPO_PUBLIC_API_URL") ||
+  getEnvVar("NEXT_PUBLIC_API_URL") ||
   "https://7omj4x5pbg.execute-api.us-east-1.amazonaws.com/dev";
 
 const api = axios.create({

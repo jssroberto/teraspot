@@ -63,7 +63,9 @@ export default function DashboardScreen() {
     fetchKPIData();
 
     // WebSocket Connection
-    const wsUrl = "wss://vmdq0zxc18.execute-api.us-east-1.amazonaws.com/dev";
+    const wsUrl =
+      process.env.EXPO_PUBLIC_WEBSOCKET_URL ||
+      "wss://vmdq0zxc18.execute-api.us-east-1.amazonaws.com/dev";
     let ws: WebSocket | null = null;
 
     const connectWebSocket = () => {
