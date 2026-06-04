@@ -2,7 +2,11 @@ import { fetchAuthSession } from "aws-amplify/auth";
 import axios from "axios";
 
 // TODO: Use environment variable
+declare const process: any;
+
 const API_BASE_URL =
+  process.env.EXPO_PUBLIC_API_URL ||
+  process.env.NEXT_PUBLIC_API_URL ||
   "https://7omj4x5pbg.execute-api.us-east-1.amazonaws.com/dev";
 
 const api = axios.create({

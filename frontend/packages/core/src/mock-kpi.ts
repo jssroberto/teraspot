@@ -50,8 +50,16 @@ export const mockKpi: KPIResponse = {
             "inactive_devices": [
                 "teraspot-edge-device"
             ],
+            "device_list": [],
             "status": "DEGRADED",
             "inactive_threshold_minutes": 5,
+            "timestamp": "2025-12-01T05:09:39.321713+00:00"
+        },
+        "message_latency": {
+            "average_latency_seconds": 0.0,
+            "max_latency_seconds": 0.0,
+            "sample_size": 0,
+            "status": "NO_DATA",
             "timestamp": "2025-12-01T05:09:39.321713+00:00"
         }
     },
