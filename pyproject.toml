@@ -20,7 +20,8 @@ dev = [
     "pytest>=7.0.0",
     "moto[all]>=4.0.0",
     "python-dateutil>=2.8.2",
-    "boto3>=1.26.0"
+    "boto3>=1.26.0",
+    "types-boto3[dynamodb]>=1.26.0"
 ]
 
 [tool.pytest.ini_options]
